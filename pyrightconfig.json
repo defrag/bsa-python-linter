@@ -1,0 +1,8 @@
+{
+  "include": ["src", "tests"],
+  "exclude": [".venv"],
+  "typeCheckingMode": "strict",
+  "pythonVersion": "3.12",
+  "venvPath": ".",
+  "venv": ".venv"
+}
