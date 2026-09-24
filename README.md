@@ -131,3 +131,18 @@ engine. Neither layer imports an application's implementation.
 
 The linters check source structure. They cannot decide whether the inferred
 business boundaries are conceptually correct or guarantee runtime behavior.
+
+## Source roles and application wiring
+
+Roles are inferred from source locations; no `pyproject.toml` role configuration
+or skip list is used. Root-level `application.py` is an entry alongside `api.py`,
+`cli.py`, `worker.py`, and `main.py`. It can assemble multiple capabilities through
+public `deps.py` surfaces. Shared resource binding belongs in `composition` or
+`bootstrap`; entries and factories may use it, while business and support may not.
+Only `api.py` assembles capability HTTP surfaces. Entries remain independent.
+
+Independent support belongs in `foundation`, `shared`, `settings`, `errors`,
+`values`, or `database`; shared HTTP support belongs in `_ui` or `http_support`.
+These names grant their roles only directly below the application package.
+They do not exempt imports, private code, or cycles from checking. The application
+package root remains a namespace. Optional roles do not require creating files.

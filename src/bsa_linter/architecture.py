@@ -319,7 +319,18 @@ def technical_naming_violations(architecture: Architecture) -> list[Violation]:
 
 
 def ownership_violations(architecture: Architecture) -> list[Violation]:
-    findings: list[Violation] = []
+    findings = [
+        make_violation(
+            architecture,
+            "ownership",
+            edge.src,
+            edge.tgt,
+            "Production source depends on test code",
+            edge,
+        )
+        for edge in architecture.imports
+        if not is_test(edge.src) and is_test(edge.tgt)
+    ]
     if not architecture.namespace or not any(
         business_owner(architecture, b) for b in architecture.boundaries
     ):
@@ -479,6 +490,8 @@ def direction_violation(architecture: Architecture, edge: ImportEdge) -> Violati
         reason = "Shared HTTP support depends on a business capability"
     elif under_any(architecture.support, source) and business_owner(architecture, target_owner):
         reason = "Support source depends on a business capability"
+    elif under_any(architecture.support, source) and under_any(architecture.composition, target):
+        reason = "Support source depends on application composition"
     elif (
         not is_edge(architecture, source)
         and target in entry_modules(architecture)
@@ -528,7 +541,11 @@ def composition_import_violation(architecture: Architecture, edge: ImportEdge) -
     if under_any(TRANSPORT, target) and not is_http(architecture, source):
         reason = "Non-HTTP source imports a transport framework"
     elif (
-        (target.endswith(".deps") or under(f"{architecture.namespace}.settings", target))
+        (
+            target.endswith(".deps")
+            or under(f"{architecture.namespace}.settings", target)
+            or under_any(architecture.composition, target)
+        )
         and not is_edge(architecture, source)
         and not is_factory(architecture, source)
     ):

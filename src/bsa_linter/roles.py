@@ -4,17 +4,21 @@ from __future__ import annotations
 
 from bsa_linter.architecture import Architecture
 
-ENTRY_NAMES = {"api", "cli", "worker", "main"}
+ENTRY_NAMES = {"api", "cli", "worker", "main", "application"}
 ROUTE_NAMES = {"api_routes", "http_routes", "routes"}
 SUPPORT_NAMES = {"foundation", "shared", "settings", "errors", "values", "database"}
 HTTP_SUPPORT_NAMES = {"_ui", "http_support"}
 COMPOSITION_NAMES = {"composition", "bootstrap"}
 
 
+class SourceLayoutError(ValueError):
+    """Candidate source cannot establish an application namespace."""
+
+
 def infer_architecture(modules: set[str], packages: set[str]) -> Architecture:
     roots = {package for package in packages if "." not in package}
     if len(roots) != 1:
-        raise ValueError("Source tree must contain exactly one application root package")
+        raise SourceLayoutError("Source tree must contain exactly one application root package")
     namespace = roots.pop()
     support = {
         m

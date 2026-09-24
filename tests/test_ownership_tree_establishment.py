@@ -82,6 +82,32 @@ def folio_tree(root: Path, changes: dict[str, str] | None = None) -> Path:
 
 
 # Explicit expected containment and dependencies; do not derive these from sources.
+@pytest.mark.parametrize("source", ["folio/api.py", "folio/loans/borrowing/check.py"])
+@pytest.mark.parametrize("target", ["tests", "tests.helpers", "tests.missing"])
+def test_production_cannot_import_test_code(tmp_path: Path, source: str, target: str) -> None:
+    root = folio_tree(
+        tmp_path,
+        {
+            "tests/__init__.py": "book = None\n",
+            "tests/helpers.py": "book = None\n",
+            source: f"from {target} import book\n",
+        },
+    )
+    result = establish_ownership_tree(extract(root, tach=TACH))
+    assert isinstance(result, list)
+    assert (
+        Violation(
+            rule="ownership",
+            src=source.removesuffix(".py").replace("/", "."),
+            tgt=target,
+            reason="Production source depends on test code",
+            file=source,
+            line=1,
+        )
+        in result
+    )
+
+
 FOLIO_OWNERSHIP_TREE = OwnershipTree(
     owner="folio",
     dependencies=frozenset({("folio.loans", "folio.catalog")}),
@@ -1532,6 +1558,14 @@ class ImportAudience:
         ),
         pytest.param(
             ImportAudience(
+                source_file="folio/application.py",
+                source_module="folio.application",
+                additional_owner="folio.application",
+            ),
+            id="application-entry",
+        ),
+        pytest.param(
+            ImportAudience(
                 source_file="folio/cli.py", source_module="folio.cli", additional_owner="folio.cli"
             ),
             id="cli-entry",
@@ -1771,7 +1805,9 @@ def test_borrowing_command_privacy_has_precise_exceptions(
 # Application entries remain independent; domain code cannot import an entry.
 
 
-@pytest.mark.parametrize("entry", ["folio.api", "folio.cli", "folio.worker", "folio.main"])
+@pytest.mark.parametrize(
+    "entry", ["folio.api", "folio.cli", "folio.worker", "folio.main", "folio.application"]
+)
 def test_loan_history_cannot_import_an_entry(entry: str, tmp_path: Path) -> None:
     architecture = extract(
         folio_tree(
@@ -1805,6 +1841,12 @@ class EntryConnection:
     "connection",
     [
         pytest.param(EntryConnection(source="folio.api", target="folio.cli"), id="api-to-cli"),
+        pytest.param(
+            EntryConnection(source="folio.application", target="folio.api"), id="application-to-api"
+        ),
+        pytest.param(
+            EntryConnection(source="folio.api", target="folio.application"), id="api-to-application"
+        ),
         pytest.param(EntryConnection(source="folio.cli", target="folio.api"), id="cli-to-api"),
         pytest.param(
             EntryConnection(source="folio.api", target="folio.worker"), id="api-to-worker"
@@ -2044,7 +2086,12 @@ def test_only_api_entry_assembles_catalog_routes(tmp_path: Path, audience: Impor
 
 @pytest.mark.parametrize(
     "source_module",
-    ["folio.loans.api", "folio.loans.foundation", "folio.loans.bootstrap"],
+    [
+        "folio.loans.api",
+        "folio.loans.application",
+        "folio.loans.foundation",
+        "folio.loans.bootstrap",
+    ],
 )
 def test_nested_role_names_do_not_grant_application_permissions(
     tmp_path: Path, source_module: str
@@ -2428,3 +2475,84 @@ def test_unbounded_folio_returns_and_prints_located_violations(
             f"{violation.file}:{violation.line}: {violation.rule}: {violation.reason}"
             in captured.out
         )
+
+
+# Application assembly is an entry role, with ordinary boundary checks intact.
+def test_application_wires_multiple_factories_and_shared_composition(tmp_path: Path) -> None:
+    root = folio_tree(
+        tmp_path,
+        {
+            "folio/catalog/deps.py": "def get_books(): return ()\n",
+            "folio/loans/deps.py": (
+                "from folio.composition import scope\ndef get_loans(): return scope\n"
+            ),
+            "folio/composition.py": "scope = object()\n",
+            "folio/application.py": (
+                "from folio.catalog.deps import get_books\n"
+                "from folio.loans.deps import get_loans\n"
+                "from folio.composition import scope\n"
+                "def run(): return get_books(), get_loans(), scope\n"
+            ),
+        },
+    )
+    result = establish_ownership_tree(extract(root, tach=TACH))
+    assert result == replace(
+        FOLIO_OWNERSHIP_TREE,
+        children=(
+            OwnershipTree(owner="folio.application"),
+            FOLIO_OWNERSHIP_TREE.children[0],
+            OwnershipTree(owner="folio.composition"),
+            FOLIO_OWNERSHIP_TREE.children[1],
+        ),
+    )
+
+
+@pytest.mark.parametrize("source", ["folio/loans/queries.py", "folio/foundation.py"])
+def test_business_and_support_cannot_use_application_composition(
+    tmp_path: Path, source: str
+) -> None:
+    root = folio_tree(
+        tmp_path,
+        {
+            "folio/composition.py": "scope = object()\n",
+            source: "from folio.composition import scope\n",
+        },
+    )
+    result = establish_ownership_tree(extract(root, tach=TACH))
+    assert isinstance(result, list)
+    assert (
+        Violation(
+            rule="composition",
+            src=source.removesuffix(".py").replace("/", "."),
+            tgt="folio.composition",
+            reason=(
+                f"{source.removesuffix('.py').replace('/', '.')} -> folio.composition: "
+                "Business source or anchor imports composition/settings"
+            ),
+            file=source,
+            line=1,
+        )
+        in result
+    )
+
+
+@pytest.mark.parametrize("target", ["folio.catalog._stock", "folio.catalog.api_routes"])
+def test_application_entry_cannot_bypass_private_or_http_surfaces(
+    tmp_path: Path, target: str
+) -> None:
+    root = folio_tree(
+        tmp_path,
+        {
+            "folio/catalog/_stock.py": "books = ()\n",
+            "folio/catalog/api_routes.py": "books = ()\n",
+            "folio/application.py": f"from {target} import books\n",
+        },
+    )
+    result = establish_ownership_tree(extract(root, tach=TACH))
+    assert isinstance(result, list)
+    assert {finding.rule for finding in result} == (
+        {"public-surfaces", "private-access"}
+        if target.endswith("._stock")
+        else {"public-surfaces", "direction"}
+    )
+    assert all(finding.file == "folio/application.py" and finding.line == 1 for finding in result)

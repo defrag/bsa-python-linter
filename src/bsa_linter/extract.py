@@ -43,7 +43,12 @@ def attribute_name(node: ast.AST) -> str | None:
 
 def _tach_map(root: Path, tach: str) -> dict[str, list[str]]:
     result = subprocess.run(
-        [tach, "map", "--output", "-"], cwd=root, text=True, capture_output=True, check=False
+        [tach, "map", "--output", "-"],
+        cwd=root,
+        text=True,
+        capture_output=True,
+        check=False,
+        timeout=60,
     )
     if result.returncode:
         raise ValueError(f"Tach map failed: {result.stderr.strip() or result.stdout.strip()}")
