@@ -300,6 +300,27 @@ def technical_naming_violations(architecture: Architecture) -> list[Violation]:
     for module in sorted(architecture.modules):
         if is_test(module) or module in shared_api_models:
             continue
+        owner, _, name = module.rpartition(".")
+        replacement = None
+        if owner == architecture.namespace:
+            if name in {"_ui", "http_support"}:
+                replacement = "api_support"
+            elif name == "composition":
+                replacement = (
+                    "scope for resource definitions/binding and bootstrap for setup/teardown"
+                )
+        elif owner in architecture.boundaries and name in {"http_routes", "routes"}:
+            replacement = "api_routes"
+        if replacement:
+            findings.append(
+                make_violation(
+                    architecture,
+                    "python-layout",
+                    module,
+                    module,
+                    f"Unsupported role name {name}; use {replacement}",
+                )
+            )
         if any(
             part in TECHNICAL_BUCKETS
             or any(part.endswith(f"_{bucket}") for bucket in TECHNICAL_BUCKETS)

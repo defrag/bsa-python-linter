@@ -5,10 +5,10 @@ from __future__ import annotations
 from bsa_linter.architecture import Architecture
 
 ENTRY_NAMES = {"api", "cli", "worker", "main", "application"}
-ROUTE_NAMES = {"api_routes", "http_routes", "routes"}
+ROUTE_NAMES = {"api_routes"}
 SUPPORT_NAMES = {"foundation", "shared", "settings", "errors", "values", "database"}
-HTTP_SUPPORT_NAMES = {"api_support", "_ui", "http_support"}
-COMPOSITION_NAMES = {"scope", "composition", "bootstrap"}
+HTTP_SUPPORT_NAMES = {"api_support"}
+COMPOSITION_NAMES = {"scope", "bootstrap"}
 
 
 class SourceLayoutError(ValueError):

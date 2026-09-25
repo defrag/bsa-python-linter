@@ -30,7 +30,10 @@ These are module-layout rules. Do not infer implementation roles or constructor
 restrictions from class-name prefixes.
 
 Recognize application-root `scope.py` (or a `scope` package) as composition for
-resource definitions and binding, alongside `bootstrap` and legacy `composition`.
+resource definitions and binding, and `bootstrap` for setup and teardown.
+Shared API support is `api_support`; capability HTTP surfaces are `api_routes.py`.
+Do not grant technical roles to alternate names. Report unsupported names at
+their role locations as layout violations, with the current names in diagnostics.
 The same names below business owners do not grant application-level permissions.
 Keep runtime setup/teardown behavior outside this source/import linter.
 

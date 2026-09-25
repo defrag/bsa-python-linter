@@ -2,8 +2,6 @@
 
 from pathlib import Path
 
-import pytest
-
 from bsa_linter.extract import extract
 
 from .support import TACH, findings, tree, violations
@@ -20,13 +18,13 @@ def test_support_cannot_import_business_capability(tmp_path: Path) -> None:
     assert "direction" in findings(tree(tmp_path, {"app/shared.py": "from app.one import Item\n"}))
 
 
-def test_only_api_assembles_http_routes(tmp_path: Path) -> None:
+def test_only_api_assembles_api_routes(tmp_path: Path) -> None:
     root = tree(
         tmp_path,
         {
-            "app/api.py": "from app.one.http_routes import router\n",
-            "app/cli.py": "from app.one.http_routes import router\n",
-            "app/one/http_routes.py": "router = object()\n",
+            "app/api.py": "from app.one.api_routes import router\n",
+            "app/cli.py": "from app.one.api_routes import router\n",
+            "app/one/api_routes.py": "router = object()\n",
         },
     )
     reported = violations(extract(root, tach=TACH))
@@ -34,34 +32,35 @@ def test_only_api_assembles_http_routes(tmp_path: Path) -> None:
     assert any(v.rule == "direction" and v.src == "app.cli" for v in reported)
 
 
-@pytest.mark.parametrize("route_name", ["api_routes", "http_routes", "routes"])
-def test_http_routes_can_use_shared_api_models(tmp_path: Path, route_name: str) -> None:
+def test_api_routes_can_use_shared_api_models(tmp_path: Path) -> None:
     root = tree(
         tmp_path,
         {
-            "app/_ui/__init__.py": "",
-            "app/_ui/api_models.py": "class Error: pass\n",
-            f"app/one/{route_name}.py": "from app._ui.api_models import Error\n",
+            "app/api_support/__init__.py": "",
+            "app/api_support/api_models.py": "class Error: pass\n",
+            "app/one/api_routes.py": "from app.api_support.api_models import Error\n",
         },
     )
     reported = violations(extract(root, tach=TACH))
     assert not [
-        v for v in reported if v.src == f"app.one.{route_name}" and v.tgt == "app._ui.api_models"
+        v
+        for v in reported
+        if v.src == "app.one.api_routes" and v.tgt == "app.api_support.api_models"
     ]
-    assert not [v for v in reported if v.src == "app._ui.api_models"]
+    assert not [v for v in reported if v.src == "app.api_support.api_models"]
 
 
 def test_business_code_cannot_use_shared_api_models(tmp_path: Path) -> None:
     root = tree(
         tmp_path,
         {
-            "app/_ui/__init__.py": "",
-            "app/_ui/api_models.py": "class Error: pass\n",
-            "app/one/item.py": "from app._ui.api_models import Error\n",
+            "app/api_support/__init__.py": "",
+            "app/api_support/api_models.py": "class Error: pass\n",
+            "app/one/item.py": "from app.api_support.api_models import Error\n",
         },
     )
     reported = violations(extract(root, tach=TACH))
     assert any(
-        v.rule == "direction" and v.src == "app.one.item" and v.tgt == "app._ui.api_models"
+        v.rule == "direction" and v.src == "app.one.item" and v.tgt == "app.api_support.api_models"
         for v in reported
     )

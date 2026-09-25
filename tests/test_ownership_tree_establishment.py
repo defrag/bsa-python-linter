@@ -350,11 +350,11 @@ def test_support_and_entries_have_owners_but_do_not_become_business_dependencies
                 ".importlinter": "Not a graph or even valid configuration.\n",
                 "folio/foundation/__init__.py": "class Clock: pass\n",
                 "folio/foundation/_clock/__init__.py": "",
-                "folio/composition/__init__.py": "",
-                "folio/composition/wiring.py": (
+                "folio/bootstrap/__init__.py": "",
+                "folio/bootstrap/wiring.py": (
                     "from folio.loans.borrowing import BorrowingRequest\n"
                 ),
-                "folio/http_support/__init__.py": "",
+                "folio/api_support/__init__.py": "",
                 "folio/api.py": "from folio.loans.borrowing import BorrowingRequest\n",
                 "tests/__init__.py": "",
                 "tests/test_titles.py": "from folio.catalog.titles import Title\n",
@@ -370,10 +370,10 @@ def test_support_and_entries_have_owners_but_do_not_become_business_dependencies
         FOLIO_OWNERSHIP_TREE,
         children=(
             OwnershipTree(owner="folio.api"),
+            OwnershipTree(owner="folio.api_support"),
+            OwnershipTree(owner="folio.bootstrap"),
             FOLIO_OWNERSHIP_TREE.children[0],
-            OwnershipTree(owner="folio.composition"),
             OwnershipTree(owner="folio.foundation"),
-            OwnershipTree(owner="folio.http_support"),
             FOLIO_OWNERSHIP_TREE.children[1],
         ),
     )
@@ -1580,9 +1580,9 @@ class ImportAudience:
         ),
         pytest.param(
             ImportAudience(
-                source_file="folio/composition/wiring.py",
-                source_module="folio.composition.wiring",
-                additional_owner="folio.composition",
+                source_file="folio/bootstrap/wiring.py",
+                source_module="folio.bootstrap.wiring",
+                additional_owner="folio.bootstrap",
             ),
             id="composition",
         ),
@@ -1627,8 +1627,8 @@ def test_catalog_factory_enforces_its_audience(tmp_path: Path, audience: ImportA
         "folio/catalog/deps.py": "def get_books(): return ()\n",
         audience.source_file: "from folio.catalog.deps import get_books\n",
     }
-    if audience.additional_owner == "folio.composition":
-        sources["folio/composition/__init__.py"] = ""
+    if audience.additional_owner == "folio.bootstrap":
+        sources["folio/bootstrap/__init__.py"] = ""
     if audience.source_module == "folio.loans._commands.borrow":
         sources["folio/loans/_commands/__init__.py"] = ""
     architecture = extract(folio_tree(tmp_path, sources), tach=TACH)
@@ -1908,14 +1908,13 @@ def test_application_root_remains_a_namespace(tmp_path: Path) -> None:
     ]
 
 
-@pytest.mark.parametrize("support_name", ["api_support", "http_support", "_ui"])
-def test_http_support_cannot_depend_on_catalog(tmp_path: Path, support_name: str) -> None:
+def test_http_support_cannot_depend_on_catalog(tmp_path: Path) -> None:
     architecture = extract(
         folio_tree(
             tmp_path,
             {
-                f"folio/{support_name}/__init__.py": "",
-                f"folio/{support_name}/book_error.py": "from folio.catalog import BookId\n",
+                "folio/api_support/__init__.py": "",
+                "folio/api_support/book_error.py": "from folio.catalog import BookId\n",
             },
         ),
         tach=TACH,
@@ -1923,13 +1922,13 @@ def test_http_support_cannot_depend_on_catalog(tmp_path: Path, support_name: str
     assert establish_ownership_tree(architecture) == [
         Violation(
             rule="direction",
-            src=f"folio.{support_name}.book_error",
+            src="folio.api_support.book_error",
             tgt="folio.catalog",
             reason=(
-                f"folio.{support_name}.book_error -> folio.catalog: "
+                "folio.api_support.book_error -> folio.catalog: "
                 "Shared HTTP support depends on a business capability"
             ),
-            file=f"folio/{support_name}/book_error.py",
+            file="folio/api_support/book_error.py",
             line=1,
         )
     ]
@@ -1968,17 +1967,16 @@ def test_http_support_cannot_depend_on_catalog(tmp_path: Path, support_name: str
         ),
     ],
 )
-@pytest.mark.parametrize("support_name", ["api_support", "http_support", "_ui"])
 def test_http_support_private_exception_is_limited_to_http_callers(
-    tmp_path: Path, audience: ImportAudience, support_name: str
+    tmp_path: Path, audience: ImportAudience
 ) -> None:
     architecture = extract(
         folio_tree(
             tmp_path,
             {
-                f"folio/{support_name}/__init__.py": "",
-                f"folio/{support_name}/_errors.py": "class ErrorResponse: pass\n",
-                audience.source_file: f"from folio.{support_name}._errors import ErrorResponse\n",
+                "folio/api_support/__init__.py": "",
+                "folio/api_support/_errors.py": "class ErrorResponse: pass\n",
+                audience.source_file: "from folio.api_support._errors import ErrorResponse\n",
             },
         ),
         tach=TACH,
@@ -1994,15 +1992,15 @@ def test_http_support_private_exception_is_limited_to_http_callers(
             Violation(
                 rule=rule,
                 src=audience.source_module,
-                tgt=f"folio.{support_name}._errors",
-                reason=f"{audience.source_module} -> folio.{support_name}._errors: {reasons[rule]}",
+                tgt="folio.api_support._errors",
+                reason=f"{audience.source_module} -> folio.api_support._errors: {reasons[rule]}",
                 file=audience.source_file,
                 line=1,
             )
             for rule in audience.expected_rules
         ]
     else:
-        extra = (OwnershipTree(owner=f"folio.{support_name}"),)
+        extra = (OwnershipTree(owner="folio.api_support"),)
         if audience.additional_owner:
             extra += (OwnershipTree(owner=audience.additional_owner),)
         assert result == replace(
@@ -2481,7 +2479,7 @@ def test_unbounded_folio_returns_and_prints_located_violations(
 
 
 # Application assembly is an entry role, with ordinary boundary checks intact.
-@pytest.mark.parametrize("wiring", ["composition", "scope", "bootstrap"])
+@pytest.mark.parametrize("wiring", ["scope", "bootstrap"])
 def test_application_wires_multiple_factories_and_shared_composition(
     tmp_path: Path, wiring: str
 ) -> None:
@@ -2518,7 +2516,7 @@ def test_application_wires_multiple_factories_and_shared_composition(
     )
 
 
-@pytest.mark.parametrize("wiring", ["composition", "scope", "bootstrap"])
+@pytest.mark.parametrize("wiring", ["scope", "bootstrap"])
 @pytest.mark.parametrize("source", ["folio/loans/queries.py", "folio/foundation.py"])
 def test_business_and_support_cannot_use_application_composition(
     tmp_path: Path, source: str, wiring: str
@@ -2568,3 +2566,63 @@ def test_application_entry_cannot_bypass_private_or_http_surfaces(
         else {"public-surfaces", "direction"}
     )
     assert all(finding.file == "folio/application.py" and finding.line == 1 for finding in result)
+
+
+@pytest.mark.parametrize(
+    ("source_file", "source_module", "replacement"),
+    [
+        ("folio/_ui.py", "folio._ui", "api_support"),
+        ("folio/_ui/__init__.py", "folio._ui", "api_support"),
+        ("folio/http_support.py", "folio.http_support", "api_support"),
+        ("folio/http_support/__init__.py", "folio.http_support", "api_support"),
+        (
+            "folio/composition.py",
+            "folio.composition",
+            "scope for resource definitions/binding and bootstrap for setup/teardown",
+        ),
+        (
+            "folio/composition/__init__.py",
+            "folio.composition",
+            "scope for resource definitions/binding and bootstrap for setup/teardown",
+        ),
+        ("folio/catalog/http_routes.py", "folio.catalog.http_routes", "api_routes"),
+        ("folio/catalog/routes.py", "folio.catalog.routes", "api_routes"),
+        ("folio/catalog/routes/__init__.py", "folio.catalog.routes", "api_routes"),
+        (
+            "folio/loans/borrowing/http_routes.py",
+            "folio.loans.borrowing.http_routes",
+            "api_routes",
+        ),
+        ("folio/loans/borrowing/routes.py", "folio.loans.borrowing.routes", "api_routes"),
+    ],
+)
+def test_alternate_role_names_return_actionable_layout_violations(
+    tmp_path: Path, source_file: str, source_module: str, replacement: str
+) -> None:
+    architecture = extract(folio_tree(tmp_path, {source_file: ""}), tach=TACH)
+    assert source_module not in (
+        architecture.http_support | architecture.composition | architecture.routes
+    )
+    result = establish_ownership_tree(architecture)
+    assert isinstance(result, list)
+    assert [violation for violation in result if violation.rule == "python-layout"] == [
+        Violation(
+            rule="python-layout",
+            src=source_module,
+            tgt=source_module,
+            reason=f"Unsupported role name {source_module.rsplit('.', 1)[-1]}; use {replacement}",
+            file=source_file,
+            line=1,
+        )
+    ]
+
+
+@pytest.mark.parametrize(
+    "name", ["scope", "bootstrap", "composition", "api_support", "http_support"]
+)
+def test_technical_role_names_inside_catalog_remain_ordinary_business_modules(
+    tmp_path: Path, name: str
+) -> None:
+    architecture = extract(folio_tree(tmp_path, {f"folio/catalog/{name}.py": ""}), tach=TACH)
+    assert f"folio.catalog.{name}" not in architecture.composition | architecture.http_support
+    assert establish_ownership_tree(architecture) == FOLIO_OWNERSHIP_TREE

@@ -118,12 +118,12 @@ the run; no graph or temporary policy file is written into the repository.
 The observed graph describes the direction already present in code. It cannot
 decide whether a new one-way capability dependency was intended. If a project
 needs that restriction, keep an independent declared-direction check in its
-own `.importlinter` contracts or architecture tests.
+own `tach.toml` contracts or architecture tests.
 
 ## Shared checks and project checks
 
 Project-specific checks stay with the application. Folio and Meridian each
-have their own `.importlinter` contracts and architecture tests; Meridian also
+have their own `tach.toml` contracts and architecture tests; Meridian also
 has [source conventions](../samples/meridian-python/tests/conventions.py).
 Run `make check` in each application for those local rules. This linter's
 `make check` runs its own tests and then checks both samples with the shared
@@ -138,13 +138,16 @@ Roles are inferred from source locations; no `pyproject.toml` role configuration
 or skip list is used. Root-level `application.py` is an entry alongside `api.py`,
 `cli.py`, `worker.py`, and `main.py`. It can assemble multiple capabilities through
 public `deps.py` surfaces. Shared resource definitions/binding belong in `scope`, with setup/teardown in
-`bootstrap`; legacy `composition` remains recognized. Entries and factories may
+`bootstrap`. Capability HTTP surfaces use `api_routes.py`. Entries and factories may
 use these modules, while business and support may not. Test-only adapters stay
 under tests rather than becoming production application facades.
 Only `api.py` assembles capability HTTP surfaces. Entries remain independent.
 
 Independent support belongs in `foundation`, `shared`, `settings`, `errors`,
-`values`, or `database`; shared API support belongs in `api_support` (existing `_ui` and `http_support` remain recognized).
-These names grant their roles only directly below the application package.
+`values`, or `database`; shared API support belongs in `api_support`.
+Technical role names are exact. Alternate names such as `_ui`, `http_support`,
+and `composition` at the application root, or `http_routes.py`/`routes.py` at a
+capability boundary, produce layout violations.
+Support and composition names grant their roles only directly below the application package.
 They do not exempt imports, private code, or cycles from checking. The application
 package root remains a namespace. Optional roles do not require creating files.
