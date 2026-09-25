@@ -29,5 +29,10 @@ rules; keep them here, not in a sample's convention checker.
 These are module-layout rules. Do not infer implementation roles or constructor
 restrictions from class-name prefixes.
 
+Recognize application-root `scope.py` (or a `scope` package) as composition for
+resource definitions and binding, alongside `bootstrap` and legacy `composition`.
+The same names below business owners do not grant application-level permissions.
+Keep runtime setup/teardown behavior outside this source/import linter.
+
 Run `uv sync --frozen` and `make check` here. `make check` includes passing
 Folio and Meridian integration runs.
