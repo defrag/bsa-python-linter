@@ -2,6 +2,8 @@
 
 from pathlib import Path
 
+import pytest
+
 from bsa_linter.extract import extract
 
 from .support import TACH, findings, tree, violations
@@ -64,3 +66,61 @@ def test_business_code_cannot_use_shared_api_models(tmp_path: Path) -> None:
         v.rule == "direction" and v.src == "app.one.item" and v.tgt == "app.api_support.api_models"
         for v in reported
     )
+
+
+@pytest.mark.parametrize("source", ["app/scope.py", "app/scope/binding.py"])
+@pytest.mark.parametrize(
+    "target", ["app.one", "app.one.deps", "app.foundation.deps", "app.bootstrap"]
+)
+def test_scope_cannot_acquire_bootstrap_or_business_responsibilities(
+    tmp_path: Path, source: str, target: str
+) -> None:
+    sources = {
+        "app/foundation/__init__.py": "resource = object()\n",
+        "app/foundation/deps.py": "def get_resource(): return object()\n",
+        "app/bootstrap.py": "",
+        source: "from app.foundation import resource\n",
+    }
+    if source.endswith("binding.py"):
+        sources["app/scope/__init__.py"] = "from .binding import resource\n"
+    root = tree(tmp_path, sources)
+    assert violations(extract(root, tach=TACH)) == []
+    (root / source).write_text(f"import {target}\n")
+    reported = violations(extract(root, tach=TACH))
+    assert [(v.rule, v.file, v.tgt, v.reason) for v in reported] == [
+        (
+            "direction",
+            source,
+            target,
+            f"{source.removesuffix('.py').replace('/', '.')} -> {target}: "
+            "Application scope depends on business, factories, or bootstrap",
+        )
+    ]
+
+
+@pytest.mark.parametrize("source", ["app/scope.py", "app/bootstrap.py", "app/api_support.py"])
+@pytest.mark.parametrize("entry", ["app.api", "app.cli"])
+def test_composition_and_http_support_cannot_import_entries(
+    tmp_path: Path, source: str, entry: str
+) -> None:
+    root = tree(tmp_path, {"app/cli.py": "", source: ""})
+    assert violations(extract(root, tach=TACH)) == []
+    (root / source).write_text(f"import {entry}\n")
+    reported = violations(extract(root, tach=TACH))
+    assert [(v.rule, v.file, v.tgt) for v in reported] == [("direction", source, entry)]
+    assert "Non-entry source imports an entry adapter" in reported[0].reason
+
+
+def test_bootstrap_can_initialize_capabilities_after_binding_resources(tmp_path: Path) -> None:
+    root = tree(
+        tmp_path,
+        {
+            "app/scope.py": "resource = object()\n",
+            "app/bootstrap.py": (
+                "from app.scope import resource\n"
+                "from app.one.deps import get_items\n"
+                "from app.two.deps import get_items as get_other_items\n"
+            ),
+        },
+    )
+    assert violations(extract(root, tach=TACH)) == []

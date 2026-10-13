@@ -26,12 +26,18 @@ Keep the architecture data and linting rules together in `architecture.py`;
 `lint_architecture` returns `WellFormed` or a list of `Violation` values.
 Technical-bucket and separated in-memory implementation names are shared BSA
 rules; keep them here, not in a sample's convention checker.
+Generic `values.py`, `values/`, and `*_values.py` are technical buckets, not support
+roles. Value objects belong in their owning concept modules.
 These are module-layout rules. Do not infer implementation roles or constructor
 restrictions from class-name prefixes.
 
 Recognize application-root `scope.py` (or a `scope` package) as composition for
 resource definitions and binding, and `bootstrap` for setup and teardown.
 Shared API support is `api_support`; capability HTTP surfaces are `api_routes.py`.
+Scope stays independent of business owners, factories, and bootstrap; bootstrap
+may initialize capabilities through public factories. Neither composition nor
+shared HTTP helpers import entry adapters. Domain errors belong with their
+concepts; shared error support may contain only business-independent mechanisms.
 Do not grant technical roles to alternate names. Report unsupported names at
 their role locations as layout violations, with the current names in diagnostics.
 The same names below business owners do not grant application-level permissions.

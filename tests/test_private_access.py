@@ -134,3 +134,30 @@ def test_private_collaboration_remains_acyclic(tmp_path: Path) -> None:
 )
 def test_private_branch_import_is_a_violation(tmp_path: Path, changes: dict[str, str]) -> None:
     assert "private-access" in findings(tree(tmp_path, changes))
+
+
+@pytest.mark.parametrize("source", ["app/api.py", "app/one/api_routes.py"])
+@pytest.mark.parametrize(
+    "access",
+    [
+        "from app.api_support.errors import _hidden as visible\n",
+        "import app.api_support.errors as errors\nvisible = errors._hidden\n",
+    ],
+)
+def test_http_public_leaf_exception_does_not_expose_private_symbols(
+    tmp_path: Path, source: str, access: str
+) -> None:
+    root = tree(
+        tmp_path,
+        {
+            "app/api_support/__init__.py": "",
+            "app/api_support/errors.py": "visible = object()\n_hidden = object()\n",
+            source: access.replace("_hidden", "visible"),
+        },
+    )
+    assert violations(extract(root, tach=TACH)) == []
+    (root / source).write_text(access)
+    reported = violations(extract(root, tach=TACH))
+    assert [(v.rule, v.file, v.tgt, v.line) for v in reported] == [
+        ("private-access", source, "app.api_support.errors", len(access.splitlines()))
+    ]

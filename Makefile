@@ -1,7 +1,7 @@
 UV ?= uv
 export UV
 
-.PHONY: check test lint sample check-package
+.PHONY: check test lint sample check-package check-mutations
 
 check: lint test sample
 
@@ -12,6 +12,9 @@ lint:
 
 test:
 	$(UV) run --frozen pytest
+
+check-mutations:
+	$(UV) run --frozen python tests/mutations/check_rules.py
 
 sample:
 	$(UV) run --frozen bsa-lint --root ../samples/bsa-python

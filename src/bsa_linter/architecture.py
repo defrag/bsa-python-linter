@@ -96,6 +96,7 @@ TECHNICAL_BUCKETS = {
     "services",
     "contracts",
     "types",
+    "values",
     "schemas",
     "domain",
     "entities",
@@ -517,12 +518,22 @@ def direction_violation(architecture: Architecture, edge: ImportEdge) -> Violati
         reason = "Support source depends on a business capability"
     elif under_any(architecture.support, source) and under_any(architecture.composition, target):
         reason = "Support source depends on application composition"
+    elif under(f"{architecture.namespace}.scope", source) and (
+        business_owner(architecture, target_owner)
+        or is_factory(architecture, target)
+        or under(f"{architecture.namespace}.bootstrap", target)
+    ):
+        reason = "Application scope depends on business, factories, or bootstrap"
     elif (
-        not is_edge(architecture, source)
+        source not in entry_modules(architecture)
         and target in entry_modules(architecture)
         and target in architecture.modules
     ):
-        reason = "Domain source imports an entry adapter"
+        reason = (
+            "Non-entry source imports an entry adapter"
+            if is_edge(architecture, source)
+            else "Domain source imports an entry adapter"
+        )
     elif (
         source in entry_modules(architecture)
         and target in entry_modules(architecture)
@@ -562,13 +573,14 @@ def direction_violation(architecture: Architecture, edge: ImportEdge) -> Violati
 
 def composition_import_violation(architecture: Architecture, edge: ImportEdge) -> Violation | None:
     source, target = edge.src, edge.tgt
+    settings = f"{architecture.namespace}.settings"
     reason = None
     if under_any(TRANSPORT, target) and not is_http(architecture, source):
         reason = "Non-HTTP source imports a transport framework"
     elif (
         (
             target.endswith(".deps")
-            or under(f"{architecture.namespace}.settings", target)
+            or (under(settings, target) and not under(settings, source))
             or under_any(architecture.composition, target)
         )
         and not is_edge(architecture, source)

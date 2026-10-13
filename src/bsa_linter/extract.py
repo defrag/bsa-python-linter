@@ -14,6 +14,7 @@ from bsa_linter.architecture import (
     Architecture,
     ImportEdge,
     Violation,
+    is_test,
 )
 from bsa_linter.roles import infer_architecture
 
@@ -297,7 +298,7 @@ def extract(root: Path, *, tach: str = "tach") -> Architecture:
         for module, path in paths.items()
         if module in modules
         and path.name == "__init__.py"
-        and not module.startswith("tests")
+        and not is_test(module)
         and not any(part.startswith("_") for part in module.split("."))
     }
     architecture = infer_architecture(modules, packages)
