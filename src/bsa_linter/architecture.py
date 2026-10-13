@@ -203,6 +203,7 @@ def is_anchor(architecture: Architecture, module: str) -> bool:
         module in architecture.boundaries
         or owner in architecture.boundaries
         and parent(module) == owner
+        and not leaf(module).startswith("_")
         and leaf(module) not in NOT_ANCHOR
         and module not in architecture.routes
     )
@@ -259,10 +260,10 @@ def owner_dependencies_from_imports(
 
 
 def private_exception(architecture: Architecture, source: str, target: str) -> bool:
-    return (
-        (is_test(source) and is_test(target))
-        or (source in architecture.api_entries and is_ui(architecture, target))
-        or (source in architecture.routes and is_ui(architecture, target))
+    return (is_test(source) and is_test(target)) or (
+        source in architecture.api_entries | architecture.routes
+        and is_ui(architecture, target)
+        and not any(part.startswith("_") for part in target.split("."))
     )
 
 
@@ -429,10 +430,13 @@ def private_access_violation(architecture: Architecture, edge: ImportEdge) -> Vi
     if target_owner is None or source_owner is None:
         return None
     private_commands = under(f"{target_owner}._commands", edge.tgt)
-    allowed_commands = edge.src in {
-        f"{target_owner}.commands",
-        f"{target_owner}.deps",
-    } or under(f"{target_owner}._commands", edge.src)
+    # Ownership grants implementation access; role restrictions are a separate
+    # gate. A sibling private branch is still this owner's implementation.
+    allowed_commands = (
+        source_owner == target_owner
+        and not is_anchor(architecture, edge.src)
+        and not is_http(architecture, edge.src)
+    )
     if private_commands and not allowed_commands:
         return make_violation(
             architecture,
@@ -440,12 +444,12 @@ def private_access_violation(architecture: Architecture, edge: ImportEdge) -> Vi
             edge.src,
             edge.tgt,
             f"{edge.src} -> {edge.tgt}: Operations are private to "
-            "commands.py, deps.py, and their own command branch",
+            "their owner's implementation and composition; anchors and routes use public surfaces",
             edge,
         )
     if (
         source_owner != target_owner
-        and not private_exception(architecture, edge.src, edge.tgt)
+        and not (is_test(edge.src) and is_test(edge.tgt))
         and (
             any(part.startswith("_") and part != "__init__" for part in edge.tgt.split("."))
             or bool(edge.symbol and edge.symbol.startswith("_"))

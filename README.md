@@ -18,6 +18,15 @@ symbols through qualified references and simple assignment aliases. References
 to dynamic loaders, non-module-scope imports, and source symlinks prevent
 establishment, including directory symlinks that would otherwise hide source.
 
+Private underscore branches retain their nearest boundary's ownership. Owner
+implementation and composition may consume private descendants and collaborate
+across private branches with acyclic imports. Access stops at the next boundary:
+parent, sibling, descendant and external owners use supported surfaces. This
+includes private shared HTTP support; HTTP callers use its public surface.
+Role checks remain independent: anchors and routes cannot import `_commands`,
+and private implementation cannot import factories. An import permission is
+not permission to aggregate a child boundary's exports through a parent root.
+
 ```sh
 uv sync --frozen
 uv run --frozen bsa-lint --root ../samples/bsa-python

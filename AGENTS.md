@@ -37,5 +37,11 @@ their role locations as layout violations, with the current names in diagnostics
 The same names below business owners do not grant application-level permissions.
 Keep runtime setup/teardown behavior outside this source/import linter.
 
+Private underscore branches retain the nearest owner's identity. Same-owner
+implementation/composition can access private descendants and siblings; preserve
+cycle checks and role restrictions on anchors, routes and factories. Stop at each
+child boundary. Foreign access to private source or symbols is forbidden even
+for HTTP callers of shared support. Public support surfaces keep their audiences.
+
 Run `uv sync --frozen` and `make check` here. `make check` includes passing
 Folio and Meridian integration runs.

@@ -1773,7 +1773,8 @@ def test_borrowing_command_privacy_has_precise_exceptions(
     reasons = {
         "public-surfaces": "Foreign concept leaf/private module bypasses its public surface",
         "private-access": (
-            "Operations are private to commands.py, deps.py, and their own command branch"
+            "Operations are private to their owner's implementation and composition; "
+            "anchors and routes use public surfaces"
         ),
     }
     if audience.expected_rules:
@@ -1939,15 +1940,20 @@ def test_http_support_cannot_depend_on_catalog(tmp_path: Path) -> None:
     [
         pytest.param(
             ImportAudience(
-                source_file="folio/api.py", source_module="folio.api", additional_owner="folio.api"
+                source_file="folio/api.py",
+                source_module="folio.api",
+                additional_owner="folio.api",
+                expected_rules=("public-surfaces", "private-access"),
             ),
-            id="api-can-use-http-support",
+            id="api-cannot-use-private-http-support",
         ),
         pytest.param(
             ImportAudience(
-                source_file="folio/loans/api_routes.py", source_module="folio.loans.api_routes"
+                source_file="folio/loans/api_routes.py",
+                source_module="folio.loans.api_routes",
+                expected_rules=("public-surfaces", "private-access"),
             ),
-            id="route-can-use-http-support",
+            id="route-cannot-use-private-http-support",
         ),
         pytest.param(
             ImportAudience(
@@ -1967,7 +1973,7 @@ def test_http_support_cannot_depend_on_catalog(tmp_path: Path) -> None:
         ),
     ],
 )
-def test_http_support_private_exception_is_limited_to_http_callers(
+def test_http_support_privacy_applies_to_all_foreign_callers(
     tmp_path: Path, audience: ImportAudience
 ) -> None:
     architecture = extract(
@@ -2433,7 +2439,8 @@ def test_unbounded_folio_returns_and_prints_located_violations(
             tgt="folio.loans._commands.borrow",
             reason=(
                 "folio.loans.service -> folio.loans._commands.borrow: "
-                "Operations are private to commands.py, deps.py, and their own command branch"
+                "Operations are private to their owner's implementation and composition; "
+                "anchors and routes use public surfaces"
             ),
             file="folio/loans/service.py",
             line=5,
