@@ -3,6 +3,6 @@
   "exclude": [".venv"],
   "typeCheckingMode": "strict",
   "pythonVersion": "3.12",
-  "venvPath": ".",
+  "venvPath": "..",
   "venv": ".venv"
 }

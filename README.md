@@ -35,7 +35,13 @@ uv run --frozen bsa-lint --root /path/to/application --json
 uv run --frozen bsa-lint --root /path/to/application --ownership-tree
 uv run --frozen bsa-lint --root /path/to/application --ownership-tree --json
 make check  # strict Pyright, Ruff, tests, Folio, and Meridian
+make check-package  # build and install the distribution in a temporary external consumer
 ```
+
+Development uses the tooling workspace's `../uv.lock` and `../.venv`. The package
+retains its own dependency declarations and Python 3.12–3.13 support. Distribution
+checks install only the wheel and its declared dependencies, exercise the installed
+`bsa-lint` command and reject a private import. They require registry access.
 
 The command prints `OK` and exits 0 on a conforming tree. It prints findings
 and exits 1 on violations. Extraction or tool errors exit 2. Source parse and
@@ -160,3 +166,8 @@ capability boundary, produce layout violations.
 Support and composition names grant their roles only directly below the application package.
 They do not exempt imports, private code, or cycles from checking. The application
 package root remains a namespace. Optional roles do not require creating files.
+
+Distribution integration tests live under `tests/packaging/`. Their small catalog
+consumer is a synthetic fixture owned by the tests; it is not an application
+dependency or part of the checker engine. They run separately because they build
+and install artifacts with registry access.

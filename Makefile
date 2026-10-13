@@ -1,15 +1,21 @@
-.PHONY: check test lint sample
+UV ?= uv
+export UV
+
+.PHONY: check test lint sample check-package
 
 check: lint test sample
 
 lint:
-	uv run --frozen pyright
-	uv run --frozen ruff check .
-	uv run --frozen ruff format --check .
+	$(UV) run --frozen pyright
+	$(UV) run --frozen ruff check .
+	$(UV) run --frozen ruff format --check .
 
 test:
-	uv run --frozen pytest
+	$(UV) run --frozen pytest
 
 sample:
-	uv run --frozen bsa-lint --root ../samples/bsa-python
-	uv run --frozen bsa-lint --root ../samples/meridian-python
+	$(UV) run --frozen bsa-lint --root ../samples/bsa-python
+	$(UV) run --frozen bsa-lint --root ../samples/meridian-python
+
+check-package:
+	$(UV) run --frozen python tests/packaging/check_package.py

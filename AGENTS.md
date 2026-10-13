@@ -45,3 +45,6 @@ for HTTP callers of shared support. Public support surfaces keep their audiences
 
 Run `uv sync --frozen` and `make check` here. `make check` includes passing
 Folio and Meridian integration runs.
+Development uses the parent tooling workspace's lockfile and environment. Run
+`make check-package` after packaging changes to test the installed wheel outside
+that workspace; retain independent CI coverage for both supported Python versions.
