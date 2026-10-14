@@ -15,7 +15,7 @@ see [Limits](#limits). This linter is MIT licensed, including commercial use.
 Install from a versioned source release:
 
 ```sh
-uv add --dev 'bsa-architecture-linter @ git+https://github.com/defrag/bsa-python-linter@v0.1.0'
+uv add --dev 'bsa-architecture-linter @ git+https://github.com/defrag/bsa-python-linter@v0.1.0b1'
 uv run bsa-lint --root . --ownership-tree
 ```
 
