@@ -17,7 +17,6 @@ check-mutations:
 	$(UV) run --frozen python tests/mutations/check_rules.py
 
 sample:
-	$(UV) run --frozen pytest ../test_linter_samples.py
 	$(UV) run --frozen bsa-lint --root ../samples/bsa-python
 	$(UV) run --frozen bsa-lint --root ../samples/meridian-python
 

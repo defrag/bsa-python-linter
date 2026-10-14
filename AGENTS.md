@@ -53,7 +53,8 @@ child boundary. Foreign access to private source or symbols is forbidden even
 for HTTP callers of shared support. Public support surfaces keep their audiences.
 
 Run `uv sync --frozen` and `make check` here. `make check` covers the self-contained checker suite. In the source monorepo,
-also run `make sample` for integrations in `../test_linter_samples.py`.
+also run `make sample` to lint both reference applications through the CLI.
+Each sample owns its application-specific architecture tests.
 Keep structural invariant tests independent of application roles, test-adapter
 privileges, and sample fixtures. Check role-specific permissions separately;
 assigning a role must not hide ownership or dependency cycles.
