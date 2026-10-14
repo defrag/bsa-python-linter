@@ -365,9 +365,18 @@ def test_support_and_entries_have_owners_but_do_not_become_business_dependencies
         ),
         tach=TACH,
     )
-    assert architecture.dependency_graphs_by_owner == FOLIO_DEPENDENCIES_BY_OWNER
+    complete_root_dependencies = FOLIO_DEPENDENCIES_BY_OWNER["folio"] | {
+        ("folio.api", "folio.loans"),
+        ("folio.bootstrap", "folio.loans"),
+        ("folio.loans", "folio.foundation"),
+    }
+    assert architecture.owner_dependencies == FOLIO_DEPENDENCIES_BY_OWNER["folio"]
+    assert architecture.dependency_graphs_by_owner == FOLIO_DEPENDENCIES_BY_OWNER | {
+        "folio": complete_root_dependencies
+    }
     assert establish_ownership_tree(architecture) == replace(
         FOLIO_OWNERSHIP_TREE,
+        dependencies=complete_root_dependencies,
         children=(
             OwnershipTree(owner="folio.api"),
             OwnershipTree(owner="folio.api_support"),
@@ -1083,6 +1092,8 @@ def test_shared_support_returns_its_place_in_the_ownership_tree(
 
     assert establish_ownership_tree(architecture) == replace(
         FOLIO_OWNERSHIP_TREE,
+        dependencies=FOLIO_OWNERSHIP_TREE.dependencies
+        | {("folio.loans", layout.expected_support_tree.owner)},
         children=tuple(
             sorted(
                 FOLIO_OWNERSHIP_TREE.children + (layout.expected_support_tree,),
@@ -1655,6 +1666,7 @@ def test_catalog_factory_enforces_its_audience(tmp_path: Path, audience: ImportA
         if audience.additional_owner:
             expected = replace(
                 expected,
+                dependencies=expected.dependencies | {(audience.additional_owner, "folio.catalog")},
                 children=tuple(
                     sorted(
                         expected.children + (OwnershipTree(owner=audience.additional_owner),),
@@ -2083,6 +2095,7 @@ def test_only_api_entry_assembles_catalog_routes(tmp_path: Path, audience: Impor
     else:
         assert result == replace(
             FOLIO_OWNERSHIP_TREE,
+            dependencies=FOLIO_OWNERSHIP_TREE.dependencies | {("folio.api", "folio.catalog")},
             children=(OwnershipTree(owner="folio.api"),) + FOLIO_OWNERSHIP_TREE.children,
         )
 
@@ -2509,6 +2522,13 @@ def test_application_wires_multiple_factories_and_shared_composition(
     result = establish_ownership_tree(extract(root, tach=TACH))
     assert result == replace(
         FOLIO_OWNERSHIP_TREE,
+        dependencies=FOLIO_OWNERSHIP_TREE.dependencies
+        | {
+            ("folio.application", "folio.catalog"),
+            ("folio.application", "folio.loans"),
+            ("folio.application", f"folio.{wiring}"),
+            ("folio.loans", f"folio.{wiring}"),
+        },
         children=tuple(
             sorted(
                 (

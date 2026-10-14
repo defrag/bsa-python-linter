@@ -22,7 +22,7 @@ uv run --frozen bsa-lint --root /path/to/application --ownership-tree
 uv run --frozen bsa-lint --root /path/to/application --ownership-tree --json
 ```
 
-`--root` is the source directory containing the application package and `tests/`,
+`--root` is the source directory containing the application package and optional `tests/`,
 not the application package itself. For example, point it at the directory
 containing `folio/__init__.py`. There must be exactly one application root package
 and at least one business capability package. A flat collection of files, or an
@@ -39,6 +39,37 @@ JSON output contains `pass` and `violations`. Each violation has `rule`, `src`,
 `ownership_tree` on success. A failed tree is never presented as established.
 Tool errors use stderr rather than a successful JSON report. One import can
 violate several independent rules and therefore produce several findings.
+
+## Structural rules and Python conventions
+
+A library can establish a valid ownership tree with ordinary concept packages,
+public roots, and private implementation alone. It does not need handlers,
+commands, factories, HTTP, application scopes, or test adapters.
+
+The structural rules are:
+
+- Every source module has a direct owner. Private branches retain the nearest
+  boundary's identity; a public child boundary has its own owner.
+- Crossing an ownership boundary requires a supported public surface. Being a
+  parent, sibling, or descendant does not grant access to private implementation.
+- Re-exporting a name does not erase the import that brought it into the owner.
+- Containment and imports are different graphs. A parent implementation may use
+  a child surface while that child uses parent vocabulary, provided the actual
+  files and sibling-owner graphs remain acyclic.
+- File dependencies and collapsed sibling-owner dependencies are acyclic at every
+  scope. Technical roles cannot remove an edge from those structural checks.
+- Unreadable or unsupported source cannot silently produce a passing tree.
+
+The Python profile adds reserved paths, audience restrictions, anchor rules,
+technical-bucket naming, transport restrictions, and test-entry conventions.
+Those rules constrain a structural connection or designate an extra surface;
+they do not replace direct ownership, privacy, or cycle checks. Tests may use
+public application surfaces, but have no access to another owner's private code.
+
+Both public checking APIs still apply the complete Python profile. There is no
+role-free CLI switch or weaker validation mode. The separation is between the
+structural invariants and the extra conventions we verify, not two verdicts a
+caller can choose between.
 
 ## How source roles are inferred
 
@@ -293,8 +324,9 @@ collapsed owners: folio.lending -> folio.catalog -> folio.lending
 Imports collapse to the direct child boundary visible in each scope. Dependencies
 between descendants of `folio.lending.borrowing` and `folio.lending.history` become
 an edge between those children of `folio.lending`. The same check applies within
-nested support packages. Top-level business dependency graphs exclude support,
-composition, and entries; those modules still participate in the file graph.
+nested support packages and between technical owners at the application root.
+Support, composition, HTTP support, and entries participate in both structural
+graphs. Only the separate business dependency summary excludes them.
 
 Duplicate edges and same-owner edges collapse away in owner graphs. Edges describe
 direct observed imports, not their transitive closure. Forbidden imports remain
@@ -394,8 +426,12 @@ else:
 `tree.to_dict()` serializes each node's `owner`, `children`, and `dependencies`.
 
 `architecture.owner_dependencies` exposes top-level business dependencies.
-`architecture.dependency_graphs_by_owner` exposes sibling dependencies at each
-scope, including scopes without cross-owner imports and the application root.
+`architecture.dependency_graphs_by_owner` exposes the complete sibling-owner
+dependencies at each scope with child boundaries, plus the application root.
+The root graph and returned tree include technical support, composition, HTTP
+support, and entry connections as well as business dependencies. The separate
+`owner_dependencies` business summary omits technical roles; it is not the graph
+used for cycle validation. Empty sibling graphs are retained where applicable.
 These observed relationships remain inspectable when the architecture has
 violations.
 
@@ -458,6 +494,16 @@ and cycles after moving files into folders. Private folders keep their owner's
 identity; public children introduce separate owners. Disjoint file imports can
 therefore form a cycle between child owners even without a file cycle, while
 acyclic collaboration inside one owner's private branches remains allowed.
+
+[Structural invariant tests](tests/test_structural_invariants.py) use a plain
+library with no application roles or application test files. They exercise
+ownership, private access, re-exports, return edges, and renaming. An independent
+topological-elimination oracle checks every directed four-node graph without
+self edges (4,096 graphs), and every three-owner graph at three depths (192
+graphs). These bounded checks do not prove all possible source programs correct.
+[Role independence tests](tests/test_role_independence.py) verify that assigning
+technical roles never hides a sibling-owner cycle, even when role direction
+also forbids the connection.
 
 `make check-mutations` runs a separate
 [mutation check](tests/mutations/check_rules.py). It first verifies the original

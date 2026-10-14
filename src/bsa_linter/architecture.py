@@ -50,11 +50,15 @@ class Architecture:
     @property
     def owner_dependencies(self) -> frozenset[tuple[str, str]]:
         """Observed dependencies between the application's top-level business owners."""
-        return owner_dependencies_from_imports(self)
+        return frozenset(
+            (source, target)
+            for source, target in owner_dependencies_from_imports(self)
+            if business_owner(self, source) and business_owner(self, target)
+        )
 
     @property
     def dependency_graphs_by_owner(self) -> dict[str, frozenset[tuple[str, str]]]:
-        """Dependencies between siblings at each level of the ownership tree."""
+        """All sibling-owner dependencies, before role-specific summaries or permissions."""
         scopes = {self.namespace} | {
             parent(package)
             for package in self.packages
@@ -226,15 +230,13 @@ def boundary_in_scope(
     """Resolve a module to the direct child boundary visible in this scope."""
     scope = architecture.namespace if scope is None else scope
     owner = owner_of(architecture, module)
-    if owner is None or scope == architecture.namespace and not business_owner(architecture, owner):
+    if owner is None:
         return None
     return min(
         (
             d
-            for d in declared_owners(architecture)
-            if parent(d) == scope
-            and under(d, owner)
-            and (scope != architecture.namespace or business_owner(architecture, d))
+            for d in declared_owners(architecture) | architecture.entries
+            if parent(d) == scope and under(d, owner)
         ),
         key=len,
         default=None,
@@ -244,7 +246,7 @@ def boundary_in_scope(
 def owner_dependencies_from_imports(
     architecture: Architecture, scope: str | None = None
 ) -> frozenset[tuple[str, str]]:
-    """Collapse local imports to sibling boundaries; default to the application root.
+    """Collapse local imports to sibling owners regardless of role; default to the root.
 
     Descendants collapse to their direct child of scope. Imports involving the
     scope itself or an outside boundary remain subject to the import rules, but

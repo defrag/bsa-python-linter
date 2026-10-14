@@ -14,7 +14,10 @@ read application `tach.toml` declarations to infer observed dependencies. Repeat
 direct child boundaries at every depth, collapsing their descendants in that scope.
 Support roles apply to their subtrees. Nested support packages remain distinct
 owners and receive internal dependency-cycle checks; support never depends on
-business owners. Top-level observed business dependencies exclude support.
+business owners. The complete sibling-owner graphs retain support, composition,
+HTTP support, and entry connections at the root as well as nested boundaries.
+Only the separate top-level business dependency summary excludes technical roles;
+never use that filtered view to validate cycles or construct the ownership tree.
 Keep forbidden dependencies in the observed dependency data. Establishment returns
 an `OwnershipTree` on success or all `Violation` values on failure. Dependency
 arrows represent imports, not containment. Keep the Folio ownership tree fixture,
@@ -51,6 +54,9 @@ for HTTP callers of shared support. Public support surfaces keep their audiences
 
 Run `uv sync --frozen` and `make check` here. `make check` includes passing
 Folio and Meridian integration runs.
+Keep structural invariant tests independent of application roles, test-adapter
+privileges, and sample fixtures. Check role-specific permissions separately;
+assigning a role must not hide ownership or dependency cycles.
 Development uses the parent tooling workspace's lockfile and environment. Run
 `make check-package` after packaging changes to test the installed wheel outside
 that workspace; retain independent CI coverage for both supported Python versions.
