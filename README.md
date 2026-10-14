@@ -16,12 +16,12 @@ annotations and a `py.typed` marker for Python API consumers.
 Install the published beta from PyPI:
 
 ```sh
-uv add --dev bsa-linter==0.1.0b3
+uv add --dev bsa-linter==0.1.0b4
 uv run bsa-lint --root .
 ```
 
 The beta's rules and public APIs may change before a stable release. Pin a version
-and review diagnostics when upgrading. [PyPI release](https://pypi.org/project/bsa-linter/0.1.0b3/).
+and review diagnostics when upgrading. [PyPI release](https://pypi.org/project/bsa-linter/0.1.0b4/).
 
 The distribution was previously named `bsa-architecture-linter`. If installed,
 remove that dependency before adding `bsa-linter`; both provide the same
@@ -30,7 +30,7 @@ remove that dependency before adding `bsa-linter`; both provide the same
 Alternatively, install from the matching source release:
 
 ```sh
-uv add --dev 'bsa-linter @ git+https://github.com/defrag/bsa-python-linter@v0.1.0b3'
+uv add --dev 'bsa-linter @ git+https://github.com/defrag/bsa-python-linter@v0.1.0b4'
 uv run bsa-lint --root .
 ```
 
@@ -52,6 +52,11 @@ not the application package itself. For example, point it at the directory
 containing `folio/__init__.py`. There must be exactly one application root package
 and at least one business capability package. A flat collection of files, or an
 application with no capability boundaries, cannot obtain a vacuous pass.
+
+Use an interpreter that can parse the application's Python syntax. The checker
+uses that interpreter's AST parser; running it on an older Python cannot validate
+syntax introduced by a newer release. Installing it as a project development
+dependency lets `uv run` use the project's interpreter and locked dependencies.
 
 | Exit | Meaning |
 | --- | --- |
@@ -546,7 +551,11 @@ make check-package  # build/install the wheel in a temporary external consumer
 
 Standalone development uses this package's `uv.lock` and `.venv`. In the source
 monorepo, uv uses the parent tooling workspace's `../uv.lock` and `../.venv`.
-The package retains its own dependencies and Python 3.12–3.13 support. Distribution
+The package requires Python 3.11 or newer, with CI coverage for Python 3.11–3.14.
+It accepts `tach>=0.35.1,<0.36`; CI tests both 0.35.1 and 0.35.3. These are public
+compatibility ranges, while development lockfiles retain exact versions. The
+source workspace's narrower evaluation requirements do not constrain consumers
+of the published package. Distribution
 checks under [tests/packaging](tests/packaging/) install only the wheel and declared
 dependencies, exercise the installed command, and reject a private import. They
 require registry access and run separately from ordinary checks.
@@ -597,6 +606,13 @@ Those integration tests remain in the monorepo; the public package's tests and C
 are self-contained and need no private repository or sample implementation.
 
 ## Releases and license
+
+### 0.1.0b4
+
+- Support Python 3.11 and newer without an upper Python version cap; test 3.11–3.14.
+- Accept compatible Tach patch releases (`>=0.35.1,<0.36`) rather than pinning
+  consumers to one exact version. Verify the minimum and current patch versions
+  in both source tests and installed-wheel checks.
 
 ### 0.1.0b3
 

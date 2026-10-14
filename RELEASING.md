@@ -8,7 +8,8 @@ Do not export the website, eval artifacts, or customer kit.
    from a copy outside the monorepo, and refresh the parent workspace lockfile if
    package metadata or dependencies require it.
 2. Run `make check check-mutations check-package` in the package, and `make sample`
-   in the monorepo. Test an exported checkout independently on Python 3.12 and 3.13.
+   in the monorepo. Test an exported checkout independently on Python 3.11 through
+   3.14 with the minimum and current supported Tach patch versions.
 3. Commit the package changes. From the monorepo root, split and inspect the
    exported file tree and history before pushing:
 

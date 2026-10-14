@@ -62,4 +62,6 @@ Standalone development uses the package's lockfile and environment; the source
 monorepo uses the parent tooling workspace. Keep both lockfiles current when
 dependencies change. Run
 `make check-package` after packaging changes to test the installed wheel outside
-that workspace; retain independent CI coverage for both supported Python versions.
+that workspace; retain independent CI coverage for Python 3.11 through 3.14 and
+the minimum and current supported Tach patch versions. Public dependencies use
+compatible ranges; development lockfiles retain exact versions.

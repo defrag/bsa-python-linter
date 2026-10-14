@@ -37,6 +37,7 @@ def main() -> None:
             project = tomllib.loads((package / "pyproject.toml").read_text())["project"]
             assert metadata["Name"] == project["name"], metadata
             assert metadata["Version"] == project["version"], metadata
+            assert metadata["Requires-Python"] == project["requires-python"], metadata
             assert metadata["License-Expression"] == "MIT", metadata
             license_path = next(name for name in names if name.endswith("/licenses/LICENSE"))
             assert archive.read(license_path) == (package / "LICENSE").read_bytes()
@@ -46,7 +47,21 @@ def main() -> None:
         environment = root / "environment"
         command([uv, "venv", "--python", sys.executable, str(environment)])
         python = environment / "bin/python"
-        command([uv, "pip", "install", "--python", str(python), str(wheels[0])])
+        tach_version = os.environ.get("BSA_TEST_TACH_VERSION")
+        requirements = [str(wheels[0])]
+        if tach_version:
+            requirements.append(f"tach=={tach_version}")
+        command([uv, "pip", "install", "--python", str(python), *requirements])
+        if tach_version:
+            command(
+                [
+                    str(python),
+                    "-I",
+                    "-c",
+                    "from importlib.metadata import version; "
+                    f"assert version('tach') == {tach_version!r}",
+                ]
+            )
         command(
             [
                 str(python),

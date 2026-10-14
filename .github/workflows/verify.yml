@@ -13,7 +13,8 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python: ["3.12", "3.13"]
+        python: ["3.11", "3.12", "3.13", "3.14"]
+        tach: ["0.35.1", "0.35.3"]
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
@@ -21,4 +22,9 @@ jobs:
           version: "0.11.16"
           python-version: ${{ matrix.python }}
       - run: uv sync --locked
+      - name: Select compatibility test dependency
+        run: uv pip install --python .venv/bin/python "tach==${{ matrix.tach }}"
       - run: make check check-mutations check-package
+        env:
+          UV_NO_SYNC: "true"
+          BSA_TEST_TACH_VERSION: ${{ matrix.tach }}
