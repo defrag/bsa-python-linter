@@ -8,7 +8,6 @@ not the runnable Folio sample. Each case returns an OwnershipTree or violations.
 import json
 import subprocess
 import sys
-from collections import Counter
 from dataclasses import dataclass, replace
 from pathlib import Path
 
@@ -24,7 +23,6 @@ from bsa_linter.cli import main as cli_main
 from bsa_linter.extract import extract
 
 TACH = str(Path(sys.executable).with_name("tach"))
-UNBOUNDED_FOLIO = Path(__file__).resolve().parents[2] / "samples/folio-unbounded"
 
 # Folio source fixture and the complete expected ownership tree.
 
@@ -2404,98 +2402,6 @@ def test_invalid_tach_output_cannot_return_a_successful_tree(
     captured = capsys.readouterr()
     assert captured.out == ""
     assert response.expected_error in captured.err
-
-
-def test_unbounded_folio_runs_despite_its_architecture_violations() -> None:
-    completed = subprocess.run(
-        [sys.executable, "-m", "folio.cli"],
-        cwd=UNBOUNDED_FOLIO,
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-    assert completed.stdout == "Ada borrowed Pride and Prejudice\nActive loans: 1\n"
-    assert completed.stderr == ""
-
-
-def test_unbounded_folio_returns_and_prints_located_violations(
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    result = establish_ownership_tree(extract(UNBOUNDED_FOLIO, tach=TACH))
-    assert isinstance(result, list)
-    assert Counter(violation.rule for violation in result) == {
-        "python-layout": 1,
-        "ownership": 1,
-        "public-surfaces": 11,
-        "private-access": 5,
-        "direction": 4,
-        "composition": 2,
-        "owner-dependency-cycle": 1,
-    }
-    assert (
-        Violation(
-            rule="direction",
-            src="folio.foundation",
-            tgt="folio.loans",
-            reason=(
-                "folio.foundation -> folio.loans: Support source depends on a business capability"
-            ),
-            file="folio/foundation.py",
-            line=1,
-        )
-        in result
-    )
-    assert (
-        Violation(
-            rule="private-access",
-            src="folio.loans.service",
-            tgt="folio.loans._commands.borrow",
-            reason=(
-                "folio.loans.service -> folio.loans._commands.borrow: "
-                "Operations are private to their owner's implementation and composition; "
-                "anchors and routes use public surfaces"
-            ),
-            file="folio/loans/service.py",
-            line=5,
-        )
-        in result
-    )
-    assert (
-        Violation(
-            rule="owner-dependency-cycle",
-            src="folio.catalog",
-            tgt="folio.catalog",
-            reason="folio.catalog -> folio.loans -> folio.catalog",
-            file="folio/catalog/__init__.py",
-            line=1,
-        )
-        in result
-    )
-    for violation in result:
-        assert violation.file is not None
-        assert violation.line is not None
-        source_lines = (UNBOUNDED_FOLIO / violation.file).read_text().splitlines()
-        assert 1 <= violation.line <= len(source_lines)
-
-    arguments = ["--root", str(UNBOUNDED_FOLIO), "--ownership-tree"]
-    assert cli_main([*arguments, "--json"]) == 1
-    captured = capsys.readouterr()
-    assert captured.err == ""
-    assert json.loads(captured.out) == {
-        "pass": False,
-        "violations": [violation.to_dict() for violation in result],
-    }
-
-    assert cli_main(arguments) == 1
-    captured = capsys.readouterr()
-    assert captured.err == ""
-    assert "BSA profile failed with 25 violation(s)." in captured.out
-    assert "Ownership tree establishment:" not in captured.out
-    for violation in result:
-        assert (
-            f"{violation.file}:{violation.line}: {violation.rule}: {violation.reason}"
-            in captured.out
-        )
 
 
 # Application assembly is an entry role, with ordinary boundary checks intact.

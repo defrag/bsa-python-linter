@@ -6,17 +6,23 @@ map with Python AST inspection, and checks the resulting graph without importing
 or executing the application. Its rules contain no sample-specific business names.
 
 This document describes the **implemented checks**. The
-[Python guide](../samples/bsa-python/AGENTS.md) also contains design and runtime
-requirements that this linter does not enforce; see [Limits](#limits).
+[architecture guide](https://boundedsoftwarearchitecture.com/guide/) and Python kit
+also cover design and runtime requirements that this linter does not enforce;
+see [Limits](#limits). This linter is MIT licensed, including commercial use.
 
 ## Run it
 
-From this package directory:
+Install from a versioned source release:
+
+```sh
+uv add --dev 'bsa-architecture-linter @ git+https://github.com/defrag/bsa-python-linter@v0.1.0'
+uv run bsa-lint --root . --ownership-tree
+```
+
+From a checkout of this package:
 
 ```sh
 uv sync --frozen
-uv run --frozen bsa-lint --root ../samples/bsa-python
-uv run --frozen bsa-lint --root ../samples/meridian-python
 uv run --frozen bsa-lint --root /path/to/application --json
 uv run --frozen bsa-lint --root /path/to/application --ownership-tree
 uv run --frozen bsa-lint --root /path/to/application --ownership-tree --json
@@ -126,9 +132,9 @@ not maintain a catalog of every capability's error codes. HTTP adapters translat
 errors to status codes and wire responses.
 
 The checker enforces support independence and source ownership, but cannot infer
-that a literal error-code list is secretly business vocabulary. The
-[Folio example](../samples/bsa-python/folio/catalog/book.py) and design review cover
-that semantic distinction; a passing import graph alone does not establish it.
+that a literal error-code list is secretly business vocabulary. A
+design review must cover that semantic distinction; a passing import graph alone
+does not establish it.
 
 ## Rule reference
 
@@ -195,6 +201,30 @@ from folio.catalog.book import Books  # allowed: own concept implementation
 # folio/lending/deps.py
 from folio.catalog.deps import get_books  # allowed: factory to factory
 ```
+
+Reusable concept behavior follows the same connection rule. Its concrete type can
+be selected by its owner's root; construction stays on the factory surface:
+
+```python
+# workshop/pricing/__init__.py
+from .price import DiscountPolicy  # owns the pricing decision, not a handler alias
+
+# workshop/orders/_commands/place.py
+from workshop.pricing import DiscountPolicy  # allowed: injected concept type
+# from workshop.pricing.deps import DiscountPolicy  # forbidden, even for annotations
+
+# workshop/orders/deps.py
+from workshop.pricing.deps import get_policy  # allowed: construct then inject
+```
+
+This does not authorize handler re-exports, root-level operation functions, or
+wrappers that delegate to another handler. The checker rejects a root or concept
+anchor importing private handlers. It cannot infer every callable's purpose:
+same-owner composition can inject another handler's bound method through legal
+imports. The guide forbids that reuse, and semantic review must inspect it.
+[Concept collaborator regressions](tests/test_concept_collaborators.py) cover
+both forms of rejected imports and this explicit structural-check limitation,
+plus a valid plain library without application roles or test adapters.
 
 Foreign owners include parents and children, not only siblings. A child can use
 its parent's public vocabulary, but cannot bypass it to reach the parent's
@@ -462,12 +492,13 @@ explicit FastAPI/Flask/Starlette restriction.
 
 ```sh
 uv sync --frozen
-make check          # strict Pyright, Ruff, regression tests, and both sample graphs
+make check          # strict Pyright, Ruff, and self-contained regression tests
 make check-mutations # disable each rule in a disposable copy; its test must fail
 make check-package  # build/install the wheel in a temporary external consumer
 ```
 
-Development uses the parent tooling workspace's `../uv.lock` and `../.venv`.
+Standalone development uses this package's `uv.lock` and `.venv`. In the source
+monorepo, uv uses the parent tooling workspace's `../uv.lock` and `../.venv`.
 The package retains its own dependencies and Python 3.12–3.13 support. Distribution
 checks under [tests/packaging](tests/packaging/) install only the wheel and declared
 dependencies, exercise the installed command, and reject a private import. They
@@ -513,8 +544,18 @@ execution errors do not count as detection. The repository's checker is never
 modified. This verifies resistance to those specific rule removals, not exhaustive
 coverage of every possible implementation bug or architecture.
 
-Project-specific contracts stay with their application. Run `make check` in each
-sample for its local rules; Meridian also has its own
-[source conventions](../samples/meridian-python/tests/conventions.py). The shared
-linter's integration checks inspect both samples without importing their
-implementations into the checker engine.
+Project-specific contracts stay with their application. The source monorepo also
+runs `make sample` against its authored examples and a deliberately invalid sample.
+Those integration tests remain in the monorepo; the public package's tests and CI
+are self-contained and need no private repository or sample implementation.
+
+## Releases and license
+
+The public repository is a one-way subtree export of the linter package. Changes
+are developed in the source monorepo and exported together with this package's
+tests and workflows. The website, evals, and customer kit have separate releases.
+See [RELEASING.md](RELEASING.md) for the export and publishing procedure.
+
+The linter source, documentation, and tests are available under the [MIT license](LICENSE).
+Dependencies retain their own licenses. This license applies to this package;
+the customer kit has its own terms.

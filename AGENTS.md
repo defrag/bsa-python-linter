@@ -52,11 +52,13 @@ cycle checks and role restrictions on anchors, routes and factories. Stop at eac
 child boundary. Foreign access to private source or symbols is forbidden even
 for HTTP callers of shared support. Public support surfaces keep their audiences.
 
-Run `uv sync --frozen` and `make check` here. `make check` includes passing
-Folio and Meridian integration runs.
+Run `uv sync --frozen` and `make check` here. `make check` covers the self-contained checker suite. In the source monorepo,
+also run `make sample` for integrations in `../test_linter_samples.py`.
 Keep structural invariant tests independent of application roles, test-adapter
 privileges, and sample fixtures. Check role-specific permissions separately;
 assigning a role must not hide ownership or dependency cycles.
-Development uses the parent tooling workspace's lockfile and environment. Run
+Standalone development uses the package's lockfile and environment; the source
+monorepo uses the parent tooling workspace. Keep both lockfiles current when
+dependencies change. Run
 `make check-package` after packaging changes to test the installed wheel outside
 that workspace; retain independent CI coverage for both supported Python versions.

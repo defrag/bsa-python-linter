@@ -9,8 +9,6 @@ from bsa_linter.architecture import Architecture, Violation, WellFormed, lint_ar
 from bsa_linter.extract import extract
 
 TACH = str(Path(sys.executable).with_name("tach"))
-FOLIO = Path(__file__).resolve().parents[2] / "samples" / "bsa-python"
-MERIDIAN = Path(__file__).resolve().parents[2] / "samples" / "meridian-python"
 VALID = {
     "app/__init__.py": "",
     "app/api.py": "from app.one.deps import get_items\n",

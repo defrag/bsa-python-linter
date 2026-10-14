@@ -4,8 +4,10 @@ import json
 import os
 import subprocess
 import sys
+from email.parser import Parser
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from zipfile import ZipFile
 
 
 def main() -> None:
@@ -22,6 +24,16 @@ def main() -> None:
         wheels = list((root / "dist").glob("*.whl"))
         assert len(wheels) == 1, wheels
         assert len(list((root / "dist").glob("*.tar.gz"))) == 1
+        with ZipFile(wheels[0]) as archive:
+            names = archive.namelist()
+            metadata_path = next(name for name in names if name.endswith(".dist-info/METADATA"))
+            metadata = Parser().parsestr(archive.read(metadata_path).decode())
+            assert metadata["License-Expression"] == "MIT", metadata
+            license_path = next(name for name in names if name.endswith("/licenses/LICENSE"))
+            assert archive.read(license_path) == (package / "LICENSE").read_bytes()
+            assert all(name.startswith("bsa_linter/") or ".dist-info/" in name for name in names), (
+                names
+            )
         environment = root / "environment"
         command([uv, "venv", "--python", sys.executable, str(environment)])
         python = environment / "bin/python"
