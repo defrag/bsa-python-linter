@@ -12,7 +12,17 @@ see [Limits](#limits). This linter is MIT licensed, including commercial use.
 
 ## Run it
 
-Install from a versioned source release:
+Install the published beta from PyPI:
+
+```sh
+uv add --dev bsa-architecture-linter==0.1.0b1
+uv run bsa-lint --root . --ownership-tree
+```
+
+The beta's rules and public APIs may change before a stable release. Pin a version
+and review diagnostics when upgrading. [PyPI release](https://pypi.org/project/bsa-architecture-linter/0.1.0b1/).
+
+Alternatively, install from the matching source release:
 
 ```sh
 uv add --dev 'bsa-architecture-linter @ git+https://github.com/defrag/bsa-python-linter@v0.1.0b1'
