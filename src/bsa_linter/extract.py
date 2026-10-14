@@ -6,6 +6,8 @@ import ast
 import importlib.util
 import json
 import subprocess
+import tomllib
+from collections import Counter
 from dataclasses import replace
 from pathlib import Path
 from typing import Protocol, cast
@@ -20,6 +22,73 @@ from bsa_linter.roles import infer_architecture
 
 EXCLUDE = {".venv", ".git", "__pycache__", ".pytest_cache", ".ruff_cache", ".uv-cache", ".lake"}
 DYNAMIC = {"__import__", "exec", "eval", "builtins.__import__", "builtins.exec", "builtins.eval"}
+
+
+def _allow_type_checking_imports(root: Path) -> bool:
+    path = root / "pyproject.toml"
+    if not path.exists():
+        return False
+    with path.open("rb") as source:
+        tool = tomllib.load(source).get("tool", {})
+    if not isinstance(tool, dict):
+        raise ValueError(f"{path}: tool must be a table")
+    raw_config = cast(dict[str, object], tool).get("bsa", {})
+    if not isinstance(raw_config, dict):
+        raise ValueError(f"{path}: tool.bsa must be a table")
+    config = cast(dict[str, object], raw_config)
+    unknown = config.keys() - {"allow-type-checking-imports"}
+    if unknown:
+        raise ValueError(f"{path}: unknown tool.bsa settings: {', '.join(sorted(unknown))}")
+    value = config.get("allow-type-checking-imports", False)
+    if not isinstance(value, bool):
+        raise ValueError(f"{path}: tool.bsa.allow-type-checking-imports must be a boolean")
+    return value
+
+
+def _type_checking_imports(tree: ast.Module) -> set[int]:
+    """Recognize direct typing guards without evaluating arbitrary conditions.
+
+    Be conservative about rebinding: an imported guard name must have exactly
+    one binding anywhere in the source. Imports remain ordinary graph edges.
+    """
+    bindings: Counter[str] = Counter()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Name) and isinstance(node.ctx, (ast.Store, ast.Del)):
+            bindings[node.id] += 1
+        elif (
+            isinstance(node, ast.Attribute)
+            and isinstance(node.ctx, (ast.Store, ast.Del))
+            and isinstance(node.value, ast.Name)
+        ):
+            bindings[node.value.id] += 1
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            bindings[node.name] += 1
+        elif isinstance(node, (ast.Import, ast.ImportFrom)):
+            for alias in node.names:
+                bindings[alias.asname or alias.name.split(".")[0]] += 1
+        elif isinstance(node, (ast.ExceptHandler, ast.MatchAs, ast.MatchStar)) and node.name:
+            bindings[node.name] += 1
+        elif isinstance(node, ast.MatchMapping) and node.rest:
+            bindings[node.rest] += 1
+
+    guards: set[str] = set()
+    imports: set[int] = set()
+    for node in tree.body:
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                name = alias.asname or alias.name
+                if alias.name == "typing" and bindings[name] == 1:
+                    guards.add(f"{name}.TYPE_CHECKING")
+        elif isinstance(node, ast.ImportFrom) and node.module == "typing" and not node.level:
+            for alias in node.names:
+                name = alias.asname or alias.name
+                if alias.name == "TYPE_CHECKING" and bindings[name] == 1:
+                    guards.add(name)
+        elif isinstance(node, ast.If) and attribute_name(node.test) in guards:
+            imports.update(
+                id(child) for child in node.body if isinstance(child, (ast.Import, ast.ImportFrom))
+            )
+    return imports
 
 
 class IssueReporter(Protocol):
@@ -73,10 +142,18 @@ def _tach_map(root: Path, tach: str) -> dict[str, list[str]]:
 
 
 def _imports_for_tree(
-    module: str, path: Path, tree: ast.Module, modules: set[str], issue: IssueReporter
+    module: str,
+    path: Path,
+    tree: ast.Module,
+    modules: set[str],
+    issue: IssueReporter,
+    *,
+    allow_type_checking_imports: bool = False,
 ) -> list[ImportEdge]:
     found: list[ImportEdge] = []
     top_imports = {id(node) for node in tree.body if isinstance(node, (ast.Import, ast.ImportFrom))}
+    if allow_type_checking_imports:
+        top_imports.update(_type_checking_imports(tree))
     package = module if path.name == "__init__.py" else module.rpartition(".")[0]
     bindings: dict[str, str] = {}
     for node in ast.walk(tree):
@@ -249,6 +326,7 @@ def _imports_for_tree(
 
 def extract(root: Path, *, tach: str = "tach") -> Architecture:
     root = root.resolve()
+    allow_type_checking_imports = _allow_type_checking_imports(root)
     paths: dict[str, Path] = {}
     trees: dict[str, ast.Module] = {}
     issues: list[Violation] = []
@@ -316,7 +394,16 @@ def extract(root: Path, *, tach: str = "tach") -> Architecture:
     candidates: list[ImportEdge] = []
     for module, tree in trees.items():
         path = paths[module]
-        candidates.extend(_imports_for_tree(module, path, tree, modules, issue))
+        candidates.extend(
+            _imports_for_tree(
+                module,
+                path,
+                tree,
+                modules,
+                issue,
+                allow_type_checking_imports=allow_type_checking_imports,
+            )
+        )
     tach_graph = _tach_map(root, tach)
     file_to_module = {str(path): module for module, path in paths.items() if module in modules}
     dependencies = {

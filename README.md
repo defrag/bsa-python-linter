@@ -16,12 +16,12 @@ annotations and a `py.typed` marker for Python API consumers.
 Install the published beta from PyPI:
 
 ```sh
-uv add --dev bsa-linter==0.1.0b2
+uv add --dev bsa-linter==0.1.0b3
 uv run bsa-lint --root .
 ```
 
 The beta's rules and public APIs may change before a stable release. Pin a version
-and review diagnostics when upgrading. [PyPI release](https://pypi.org/project/bsa-linter/0.1.0b2/).
+and review diagnostics when upgrading. [PyPI release](https://pypi.org/project/bsa-linter/0.1.0b3/).
 
 The distribution was previously named `bsa-architecture-linter`. If installed,
 remove that dependency before adding `bsa-linter`; both provide the same
@@ -30,7 +30,7 @@ remove that dependency before adding `bsa-linter`; both provide the same
 Alternatively, install from the matching source release:
 
 ```sh
-uv add --dev 'bsa-linter @ git+https://github.com/defrag/bsa-python-linter@v0.1.0b2'
+uv add --dev 'bsa-linter @ git+https://github.com/defrag/bsa-python-linter@v0.1.0b3'
 uv run bsa-lint --root .
 ```
 
@@ -64,6 +64,31 @@ JSON output contains `pass` and `violations`. Each violation has `rule`, `src`,
 `ownership_tree` on success. A failed tree is never presented as established.
 Tool errors use stderr rather than a successful JSON report. One import can
 violate several independent rules and therefore produce several findings.
+
+## Project configuration
+
+Enable type-only import syntax with this opt-in setting:
+
+```toml
+[tool.bsa]
+allow-type-checking-imports = true
+```
+
+Put it in `pyproject.toml` directly inside the directory passed to `--root`.
+Configuration is not inherited from parent directories or the shell's working
+directory. The default is `false`. Invalid TOML, unknown BSA settings, and
+non-boolean values produce a tool error (exit 2).
+
+This permits explicit imports directly inside a module-level `if TYPE_CHECKING:`
+or `if typing.TYPE_CHECKING:` body when the guard was imported from `typing`
+beforehand. Import aliases are supported; rebound guard names are conservatively
+rejected. Imports in an `else` branch, nested guards, functions, arbitrary
+conditions, and wildcard imports remain unsupported.
+
+The setting allows the syntax; it does not ignore dependencies. Guarded imports
+retain their symbols and source locations and undergo the same ownership,
+public-surface, private-access, direction, and cycle checks as runtime imports.
+External stub imports need not be importable at runtime for this analysis.
 
 ## Structural rules and Python conventions
 
@@ -384,10 +409,11 @@ in the graphs: reporting another violation does not hide a dependency or cycle.
 ### `explicit-imports`: dependencies must be statically visible
 
 Absolute and resolvable relative imports are supported, as are explicit aliases.
-All imports must be directly at module scope. Wildcards and imports inside
+By default, imports must be directly at module scope. Wildcards and imports inside
 functions, classes, `try` blocks, or conditionals (including `if TYPE_CHECKING`)
-produce findings. An import used only for an annotation still has to obey the
-same ownership and audience rules.
+produce findings. The `allow-type-checking-imports` project setting permits the
+recognized module-level typing guards described above. An import used only for an
+annotation still has to obey the same ownership and audience rules.
 
 ```python
 from folio.catalog import BookId as CatalogBookId  # supported explicit alias
@@ -571,6 +597,15 @@ Those integration tests remain in the monorepo; the public package's tests and C
 are self-contained and need no private repository or sample implementation.
 
 ## Releases and license
+
+### 0.1.0b3
+
+- Add `[tool.bsa] allow-type-checking-imports = true` in the checked root's
+  `pyproject.toml` to permit recognized module-level typing guards, including aliases.
+- Preserve all dependency edges and architecture checks for guarded imports.
+  Strict import syntax remains the default; invalid settings report a tool error.
+- Add regression coverage for guard recognition, configuration, private access,
+  dependency direction, and cycles.
 
 The public repository is a one-way subtree export of the linter package. Changes
 are developed in the source monorepo and exported together with this package's

@@ -103,6 +103,17 @@ def main() -> None:
         assert check(1)["violations"]
         (app / "app/api.py").write_text(files["app/api.py"])
         check(0)
+        (app / "pyproject.toml").write_text("[tool.bsa]\nallow-type-checking-imports = true\n")
+        (app / "app/api.py").write_text(
+            "from typing import TYPE_CHECKING\nif TYPE_CHECKING:\n"
+            "    from external_stubs.client import Client\n"
+        )
+        check(0)
+        (app / "app/api.py").write_text(
+            "from typing import TYPE_CHECKING\nif TYPE_CHECKING:\n"
+            "    from app.catalog._storage import secret\n"
+        )
+        assert check(1)["violations"]
         result = subprocess.run(
             [str(environment / "bin/bsa-lint"), "--root", str(root / "missing")],
             cwd=root,
