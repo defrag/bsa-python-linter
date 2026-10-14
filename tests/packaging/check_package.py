@@ -4,6 +4,8 @@ import json
 import os
 import subprocess
 import sys
+import tarfile
+import tomllib
 from email.parser import Parser
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -23,11 +25,18 @@ def main() -> None:
         command([uv, "build", "--no-sources", str(package), "--out-dir", str(root / "dist")])
         wheels = list((root / "dist").glob("*.whl"))
         assert len(wheels) == 1, wheels
-        assert len(list((root / "dist").glob("*.tar.gz"))) == 1
+        sdists = list((root / "dist").glob("*.tar.gz"))
+        assert len(sdists) == 1
+        with tarfile.open(sdists[0]) as archive:
+            assert any(name.endswith("/src/bsa_linter/py.typed") for name in archive.getnames())
         with ZipFile(wheels[0]) as archive:
             names = archive.namelist()
+            assert "bsa_linter/py.typed" in names
             metadata_path = next(name for name in names if name.endswith(".dist-info/METADATA"))
             metadata = Parser().parsestr(archive.read(metadata_path).decode())
+            project = tomllib.loads((package / "pyproject.toml").read_text())["project"]
+            assert metadata["Name"] == project["name"], metadata
+            assert metadata["Version"] == project["version"], metadata
             assert metadata["License-Expression"] == "MIT", metadata
             license_path = next(name for name in names if name.endswith("/licenses/LICENSE"))
             assert archive.read(license_path) == (package / "LICENSE").read_bytes()
@@ -46,6 +55,19 @@ def main() -> None:
                 "import bsa_linter; from pathlib import Path; "
                 f"assert Path(bsa_linter.__file__).is_relative_to({str(environment)!r})",
             ]
+        )
+        # Resolve types from the installed wheel, with no checkout on the search path.
+        subprocess.run(
+            [
+                str(Path(sys.executable).with_name("pyright")),
+                "--verifytypes",
+                "bsa_linter",
+                "--ignoreexternal",
+            ],
+            cwd=root,
+            env={**env, "PATH": str(environment / "bin") + os.pathsep + env.get("PATH", "")},
+            check=True,
+            timeout=60,
         )
         app = root / "consumer"
         files = {

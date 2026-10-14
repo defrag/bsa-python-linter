@@ -30,7 +30,7 @@ Do not export the website, eval artifacts, or customer kit.
 
 For a new project, add a pending Trusted Publisher in the owning PyPI account:
 
-- Project: `bsa-architecture-linter`
+- Project: `bsa-linter`
 - GitHub owner: `defrag`
 - Repository: `bsa-python-linter`
 - Workflow: `publish.yml`

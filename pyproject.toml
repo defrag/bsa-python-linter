@@ -1,6 +1,6 @@
 [project]
-name = "bsa-architecture-linter"
-version = "0.1.0b1"
+name = "bsa-linter"
+version = "0.1.0b2"
 description = "BSA architecture linter for Python applications"
 readme = "README.md"
 license = "MIT"

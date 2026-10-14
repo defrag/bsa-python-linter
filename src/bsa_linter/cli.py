@@ -28,7 +28,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--ownership-tree",
         action="store_true",
-        help="Show ownership tree establishment with dependencies between children at every depth",
+        help="Display the established tree (all checks always run, with or without this flag)",
     )
     args = parser.parse_args(argv)
     if not args.root.is_dir():

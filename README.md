@@ -8,25 +8,30 @@ or executing the application. Its rules contain no sample-specific business name
 This document describes the **implemented checks**. The
 [architecture guide](https://boundedsoftwarearchitecture.com/guide/) and Python kit
 also cover design and runtime requirements that this linter does not enforce;
-see [Limits](#limits). This linter is MIT licensed, including commercial use.
+see [Limits](#limits). This linter is MIT licensed, including commercial use. It ships inline type
+annotations and a `py.typed` marker for Python API consumers.
 
 ## Run it
 
 Install the published beta from PyPI:
 
 ```sh
-uv add --dev bsa-architecture-linter==0.1.0b1
-uv run bsa-lint --root . --ownership-tree
+uv add --dev bsa-linter==0.1.0b2
+uv run bsa-lint --root .
 ```
 
 The beta's rules and public APIs may change before a stable release. Pin a version
-and review diagnostics when upgrading. [PyPI release](https://pypi.org/project/bsa-architecture-linter/0.1.0b1/).
+and review diagnostics when upgrading. [PyPI release](https://pypi.org/project/bsa-linter/0.1.0b2/).
+
+The distribution was previously named `bsa-architecture-linter`. If installed,
+remove that dependency before adding `bsa-linter`; both provide the same
+`bsa_linter` Python module and `bsa-lint` command.
 
 Alternatively, install from the matching source release:
 
 ```sh
-uv add --dev 'bsa-architecture-linter @ git+https://github.com/defrag/bsa-python-linter@v0.1.0b1'
-uv run bsa-lint --root . --ownership-tree
+uv add --dev 'bsa-linter @ git+https://github.com/defrag/bsa-python-linter@v0.1.0b2'
+uv run bsa-lint --root .
 ```
 
 From a checkout of this package:
@@ -37,6 +42,10 @@ uv run --frozen bsa-lint --root /path/to/application --json
 uv run --frozen bsa-lint --root /path/to/application --ownership-tree
 uv run --frozen bsa-lint --root /path/to/application --ownership-tree --json
 ```
+
+`--ownership-tree` only displays the established tree. All ownership, import,
+and cycle checks run by default, including with `--json`. Add the flag when
+you want to inspect the tree; it does not enable additional checks.
 
 `--root` is the source directory containing the application package and optional `tests/`,
 not the application package itself. For example, point it at the directory
@@ -461,6 +470,8 @@ else:
 
 `extract(root, tach=...)` returns an `Architecture`; `tach` can select an executable.
 `lint_architecture(architecture)` returns `WellFormed | list[Violation]`.
+`WellFormed()` is a payload-free success marker; the caller retains the original
+`Architecture` input. Violations carry the failure details.
 `establish_ownership_tree(architecture)` runs the same checks and returns
 `OwnershipTree | list[Violation]`. Extraction issues prevent either success result.
 `tree.to_dict()` serializes each node's `owner`, `children`, and `dependencies`.

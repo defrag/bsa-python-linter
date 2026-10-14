@@ -69,7 +69,7 @@ class Architecture:
 
 @dataclass(frozen=True)
 class WellFormed:
-    architecture: Architecture
+    """Success marker: the supplied architecture passed every check."""
 
 
 @dataclass(frozen=True)
@@ -640,7 +640,7 @@ def collect_violations(architecture: Architecture) -> list[Violation]:
 
 def lint_architecture(architecture: Architecture) -> WellFormed | list[Violation]:
     findings = collect_violations(architecture)
-    return findings if findings else WellFormed(architecture)
+    return findings if findings else WellFormed()
 
 
 def establish_ownership_tree(architecture: Architecture) -> OwnershipTree | list[Violation]:

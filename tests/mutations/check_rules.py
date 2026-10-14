@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import json
 import os
 import shutil
 import subprocess
@@ -24,12 +25,28 @@ MUTATIONS = (
     ("explicit-imports", "", ""),
 )
 HARNESS = """
+import json
 import sys
 from pathlib import Path
 import bsa_linter.architecture as architecture
 import pytest
 assert Path(architecture.__file__).resolve().is_relative_to(Path(sys.argv[1]).resolve())
-raise SystemExit(pytest.main([sys.argv[2], '-q', '--tb=short']))
+class Results:
+    def __init__(self):
+        self.assertion_failures = []
+        self.other_failures = []
+
+    def pytest_runtest_makereport(self, item, call):
+        if call.excinfo is not None:
+            if call.when == "call" and isinstance(call.excinfo.value, AssertionError):
+                self.assertion_failures.append(item.nodeid)
+            else:
+                self.other_failures.append(item.nodeid)
+
+results = Results()
+status = pytest.main([sys.argv[2], '-q', '--tb=short'], plugins=[results])
+print("BSA_MUTATION_RESULT:" + json.dumps(vars(results)))
+raise SystemExit(status)
 """
 
 
@@ -84,10 +101,16 @@ def main() -> int:
             # Do not let equal-size edits or filesystem timestamp resolution reuse bytecode.
             shutil.rmtree(target.parent / "__pycache__", ignore_errors=True)
             trial = run_tests(source_root, f"{SELECTOR}[{rule}]")
+            result_lines = [
+                line.removeprefix("BSA_MUTATION_RESULT:")
+                for line in trial.stdout.splitlines()
+                if line.startswith("BSA_MUTATION_RESULT:")
+            ]
+            report: dict[str, object] = json.loads(result_lines[-1]) if result_lines else {}
             detected = (
                 trial.returncode == 1
-                and f"FAILED {SELECTOR}[{rule}]" in trial.stdout
-                and "AssertionError" in trial.stdout
+                and report.get("assertion_failures") == [f"{SELECTOR}[{rule}]"]
+                and report.get("other_failures") == []
             )
             if detected:
                 print(f"Detected disabled rule: {rule}", flush=True)

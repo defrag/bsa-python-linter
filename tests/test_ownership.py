@@ -24,7 +24,7 @@ def test_multiple_application_roots_fail_closed(tmp_path: Path) -> None:
 def test_new_capability_is_inferred_from_tree(tmp_path: Path) -> None:
     architecture = extract(tree(tmp_path, {"app/three/__init__.py": ""}), tach=TACH)
     assert "app.three" in architecture.boundaries
-    assert isinstance(lint_architecture(architecture), WellFormed)
+    assert lint_architecture(architecture) == WellFormed()
 
 
 def test_unowned_root_module_is_a_violation(tmp_path: Path) -> None:
