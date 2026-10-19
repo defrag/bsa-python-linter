@@ -7,7 +7,7 @@ import json
 import sys
 from pathlib import Path
 
-from bsa_linter.architecture import OwnershipTree, establish_ownership_tree
+from bsa_linter.architecture import OwnershipTree, collect_violations, establish_ownership_tree
 from bsa_linter.extract import extract
 
 
@@ -23,7 +23,16 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Check a Python application against the BSA profile"
     )
-    parser.add_argument("--root", type=Path, required=True, help="Python application root")
+    parser.add_argument(
+        "--root",
+        type=Path,
+        required=True,
+        help="Directory containing the application package and tests",
+    )
+    parser.add_argument(
+        "--scope",
+        help="Gate a dotted module/package and its connections; still analyze the full root",
+    )
     parser.add_argument("--json", action="store_true", help="Machine-readable findings")
     parser.add_argument(
         "--ownership-tree",
@@ -37,14 +46,22 @@ def main(argv: list[str] | None = None) -> int:
     try:
         architecture = extract(args.root, tach=str(tach))
         result = establish_ownership_tree(architecture)
+        findings = (
+            collect_violations(architecture, scope=args.scope)
+            if args.scope is not None
+            else []
+            if isinstance(result, OwnershipTree)
+            else result
+        )
     except (OSError, ValueError, json.JSONDecodeError) as exc:
         parser.exit(2, f"bsa-lint: {exc}\n")
-    findings = [] if isinstance(result, OwnershipTree) else result
     if args.json:
         payload: dict[str, object] = {
             "pass": not findings,
             "violations": [v.to_dict() for v in findings],
         }
+        if args.scope is not None:
+            payload.update(scope=args.scope, application_pass=isinstance(result, OwnershipTree))
         if args.ownership_tree and isinstance(result, OwnershipTree):
             payload["ownership_tree"] = result.to_dict()
         print(json.dumps(payload, indent=2))
@@ -53,8 +70,9 @@ def main(argv: list[str] | None = None) -> int:
         print("Ownership tree establishment:")
         print_ownership_tree(result)
     if findings:
+        subject = f"BSA scope {args.scope}" if args.scope is not None else "BSA profile"
         print(
-            f"BSA profile failed with {len(findings)} violation(s). "
+            f"{subject} failed with {len(findings)} violation(s). "
             "Review each finding against the project's architecture."
         )
         for finding in findings:
@@ -63,7 +81,15 @@ def main(argv: list[str] | None = None) -> int:
                 location += f":{finding.line}"
             print(f"{location}: {finding.rule}: {finding.reason}")
     else:
-        print("OK")
+        if args.scope is None:
+            print("OK")
+        else:
+            application = (
+                "whole application passes"
+                if isinstance(result, OwnershipTree)
+                else "whole application has violations"
+            )
+            print(f"OK for scope {args.scope} ({application}).")
     return int(bool(findings))
 
 

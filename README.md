@@ -16,12 +16,12 @@ annotations and a `py.typed` marker for Python API consumers.
 Install the published beta from PyPI:
 
 ```sh
-uv add --dev bsa-linter==0.1.0b4
+uv add --dev bsa-linter==0.1.0b5
 uv run bsa-lint --root .
 ```
 
 The beta's rules and public APIs may change before a stable release. Pin a version
-and review diagnostics when upgrading. [PyPI release](https://pypi.org/project/bsa-linter/0.1.0b4/).
+and review diagnostics when upgrading. [PyPI release](https://pypi.org/project/bsa-linter/0.1.0b5/).
 
 The distribution was previously named `bsa-architecture-linter`. If installed,
 remove that dependency before adding `bsa-linter`; both provide the same
@@ -30,7 +30,7 @@ remove that dependency before adding `bsa-linter`; both provide the same
 Alternatively, install from the matching source release:
 
 ```sh
-uv add --dev 'bsa-linter @ git+https://github.com/defrag/bsa-python-linter@v0.1.0b4'
+uv add --dev 'bsa-linter @ git+https://github.com/defrag/bsa-python-linter@v0.1.0b5'
 uv run bsa-lint --root .
 ```
 
@@ -69,6 +69,44 @@ JSON output contains `pass` and `violations`. Each violation has `rule`, `src`,
 `ownership_tree` on success. A failed tree is never presented as established.
 Tool errors use stderr rather than a successful JSON report. One import can
 violate several independent rules and therefore produce several findings.
+
+## Gradual adoption with a selected scope
+
+`--scope` is available starting with version `0.1.0b5`. Check `bsa-lint --help`
+before using it with an older installed version.
+
+```sh
+uv run --frozen bsa-lint --root /path/to/application --scope myapp.shipping --json
+```
+
+Keep `--root` at the directory containing the application package and tests.
+`--scope` accepts one existing dotted application package or module, including a
+nested package or individual file module such as `myapp.shipping.shipment`.
+Paths, globs, unknown modules, and test modules are rejected with exit 2.
+
+The checker still extracts and analyzes the whole application. The selected gate
+includes findings inside that module and its descendants, invalid incoming and
+outgoing imports, ancestor ownership defects, and cycles involving that scope.
+Cycles are checked through the full graph, including sibling-owner graphs at every
+nesting level. A file scope includes an owner cycle when one of that file's imports
+or importers contributes an edge in the cycle; an unrelated file under the same
+owner does not inherit that cycle finding.
+
+Unrelated violations do not fail the selected gate. Extraction issues anywhere
+remain blocking: unreadable or invalid source, unsupported import syntax, missing
+package initializers, or source symlinks cannot be hidden by a scope. Tool failures
+remain exit 2. The application still needs an unambiguous namespace and at least
+one capability boundary; this option does not make arbitrary legacy layouts pass.
+
+With `--scope`, exit 0 and JSON `pass` describe only the selected gate. JSON also
+includes `scope` and `application_pass`; text output identifies the scope and the
+whole-application result. `--ownership-tree` still shows the full tree only when
+the whole application passes, so an unrelated failure suppresses the tree even
+when the selected scope passes. Unscoped output and exit-code meanings are unchanged.
+
+Keep a whole-application baseline, gate the first adopted owner with `--scope`, and
+expand adoption as migrations finish. Remove the option for whole-application
+conformance. Scoped success is not proof of runtime behavior or semantic ownership.
 
 ## Project configuration
 
@@ -501,6 +539,10 @@ else:
 
 `extract(root, tach=...)` returns an `Architecture`; `tach` can select an executable.
 `lint_architecture(architecture)` returns `WellFormed | list[Violation]`.
+The optional keyword `scope="myapp.shipping"` applies the same selected gate as the
+CLI to a fully extracted `Architecture`; unknown scopes raise `ValueError`.
+Do not extract just the selected directory. With a scope, `WellFormed` confirms
+only that gate; it does not establish the whole application's ownership tree.
 `WellFormed()` is a payload-free success marker; the caller retains the original
 `Architecture` input. Violations carry the failure details.
 `establish_ownership_tree(architecture)` runs the same checks and returns
@@ -606,6 +648,13 @@ Those integration tests remain in the monorepo; the public package's tests and C
 are self-contained and need no private repository or sample implementation.
 
 ## Releases and license
+
+### 0.1.0b5 — 2026-10-19
+
+- Add `--scope` for gradual adoption while retaining full-application extraction,
+  incoming/outgoing boundary checks, and cycles through other modules and owners.
+- Identify selected-scope and whole-application outcomes separately; retain global
+  extraction failures and never present a partial pass as an established full tree.
 
 ### 0.1.0b4
 

@@ -98,9 +98,9 @@ def main() -> None:
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(content)
 
-        def check(status: int) -> dict[str, object]:
+        def check(status: int, *args: str) -> dict[str, object]:
             result = subprocess.run(
-                [str(environment / "bin/bsa-lint"), "--root", str(app), "--json"],
+                [str(environment / "bin/bsa-lint"), "--root", str(app), "--json", *args],
                 cwd=root,
                 env=env,
                 text=True,
@@ -114,10 +114,18 @@ def main() -> None:
             return payload
 
         check(0)
+        (app / "app/legacy.py").write_text("value = 1\n")
+        selected = check(0, "--scope", "app.catalog")
+        assert selected["scope"] == "app.catalog"
+        assert selected["application_pass"] is False
+        check(1)
         (app / "app/api.py").write_text("from app.catalog._storage import secret\n")
         assert check(1)["violations"]
+        assert check(1, "--scope", "app.catalog")["violations"]
         (app / "app/api.py").write_text(files["app/api.py"])
+        (app / "app/legacy.py").unlink()
         check(0)
+        assert check(0, "--scope", "app.catalog")["application_pass"] is True
         (app / "pyproject.toml").write_text("[tool.bsa]\nallow-type-checking-imports = true\n")
         (app / "app/api.py").write_text(
             "from typing import TYPE_CHECKING\nif TYPE_CHECKING:\n"

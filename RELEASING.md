@@ -27,6 +27,12 @@ Do not export the website, eval artifacts, or customer kit.
    public repository with that exact tag. Verify installation from PyPI in a fresh
    environment before announcing registry availability or pinning the kit to it.
 
+6. In the source monorepo, update `src/landingpage/public/llms.txt` with the linter
+   release, date, scoped-check guidance where relevant, and PyPI/release links.
+   Update the canonical adoption and review documents to identify released support.
+   Build and deploy the website, then verify the live index, documents, and manifest.
+   Kit versioning and dependency pins are separate; change them only for a kit release.
+
 ## PyPI setup
 
 For a new project, add a pending Trusted Publisher in the owning PyPI account:

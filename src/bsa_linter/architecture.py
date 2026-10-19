@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 
 
 @dataclass(frozen=True)
@@ -154,6 +154,41 @@ def cycle_paths(edges: set[tuple[str, str]]) -> list[list[str]]:
         if state.get(node, 0) == 0:
             visit(node)
     return found
+
+
+def cycle_paths_through(
+    edges: set[tuple[str, str]], selected: set[tuple[str, str]]
+) -> list[list[str]]:
+    """Find a cycle witness for every selected edge that participates in a cycle.
+
+    A normal DFS back-edge witness may omit a selected module in the same cyclic
+    component. Search for a return path through the full graph for each selected
+    edge instead. This also works for imports collapsed to sibling owners.
+    """
+    adjacent: dict[str, set[str]] = defaultdict(set)
+    for source, target in edges:
+        adjacent[source].add(target)
+    found: set[tuple[str, ...]] = set()
+    for source, target in sorted(edges & selected):
+        pending = [target]
+        previous: dict[str, str | None] = {target: None}
+        while pending and source not in previous:
+            node = pending.pop()
+            for successor in sorted(adjacent[node], reverse=True):
+                if successor not in previous:
+                    previous[successor] = node
+                    pending.append(successor)
+        if source not in previous:
+            continue
+        path = [source]
+        while (predecessor := previous[path[-1]]) is not None:
+            path.append(predecessor)
+        path.reverse()
+        # Rotate the witness to deduplicate cycles reached through different edges.
+        start = path.index(min(path))
+        nodes = path[start:] + path[:start]
+        found.add(tuple(nodes + [nodes[0]]))
+    return [list(path) for path in sorted(found)]
 
 
 def declared_owners(architecture: Architecture) -> set[str]:
@@ -598,32 +633,58 @@ def composition_import_violation(architecture: Architecture, edge: ImportEdge) -
     )
 
 
-def cycle_violations(architecture: Architecture) -> list[Violation]:
+def cycle_violations(architecture: Architecture, scope: str | None = None) -> list[Violation]:
     edges = {
         (edge.src, edge.tgt)
         for edge in architecture.imports
         if edge.tgt in architecture.modules and edge.src != edge.tgt
     }
+    paths = (
+        cycle_paths(edges)
+        if scope is None
+        else cycle_paths_through(
+            edges, {(src, tgt) for src, tgt in edges if under(scope, src) or under(scope, tgt)}
+        )
+    )
     return [
         make_violation(architecture, "cycles", path[0], path[0], " -> ".join(path))
-        for path in cycle_paths(edges)
+        for path in paths
     ]
 
 
-def owner_dependency_cycle_violations(architecture: Architecture) -> list[Violation]:
+def owner_dependency_cycle_violations(
+    architecture: Architecture, scope: str | None = None
+) -> list[Violation]:
+    selected = replace(
+        architecture,
+        imports=tuple(
+            edge
+            for edge in architecture.imports
+            if scope is None or under(scope, edge.src) or under(scope, edge.tgt)
+        ),
+    )
     return [
         make_violation(architecture, "owner-dependency-cycle", path[0], path[0], " -> ".join(path))
-        for edges in architecture.dependency_graphs_by_owner.values()
-        for path in cycle_paths(set(edges))
+        for owner, edges in architecture.dependency_graphs_by_owner.items()
+        for path in (
+            cycle_paths(set(edges))
+            if scope is None
+            else cycle_paths_through(
+                set(edges), set(owner_dependencies_from_imports(selected, owner))
+            )
+        )
     ]
 
 
-def collect_violations(architecture: Architecture) -> list[Violation]:
+def collect_violations(architecture: Architecture, *, scope: str | None = None) -> list[Violation]:
+    if scope is not None and (
+        scope not in architecture.modules or not under(architecture.namespace, scope)
+    ):
+        raise ValueError(f"Scope must name an existing application module or package: {scope!r}")
     findings = (
         list(architecture.issues)
         + technical_naming_violations(architecture)
         + ownership_violations(architecture)
-        + cycle_violations(architecture)
     )
     for edge in architecture.imports:
         for check in (
@@ -634,12 +695,29 @@ def collect_violations(architecture: Architecture) -> list[Violation]:
         ):
             if finding := check(architecture, edge):
                 findings.append(finding)
-    findings.extend(owner_dependency_cycle_violations(architecture))
+    if scope is not None:
+        findings = [
+            finding
+            for finding in findings
+            if finding in architecture.issues
+            or under(scope, finding.src)
+            or under(scope, finding.tgt)
+            # Structural defects in an ancestor affect the selected module's ownership.
+            or finding.src == finding.tgt
+            and under(finding.src, scope)
+            # Preserve the global prerequisite against a vacuous scoped pass.
+            or not any(business_owner(architecture, b) for b in architecture.boundaries)
+        ]
+    findings.extend(cycle_violations(architecture, scope))
+    findings.extend(owner_dependency_cycle_violations(architecture, scope))
     return list(dict.fromkeys(findings))
 
 
-def lint_architecture(architecture: Architecture) -> WellFormed | list[Violation]:
-    findings = collect_violations(architecture)
+def lint_architecture(
+    architecture: Architecture, *, scope: str | None = None
+) -> WellFormed | list[Violation]:
+    """Check the full architecture, optionally gating only a selected application scope."""
+    findings = collect_violations(architecture, scope=scope)
     return findings if findings else WellFormed()
 
 
