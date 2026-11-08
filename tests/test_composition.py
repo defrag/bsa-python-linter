@@ -36,6 +36,7 @@ def test_transport_audiences_include_submodules(tmp_path: Path, framework: str) 
     }
     forbidden = {
         "app/cli.py",
+        "app/server.py",
         "app/worker.py",
         "app/main.py",
         "app/application.py",
@@ -68,6 +69,7 @@ def test_settings_audience_with_allowed_and_forbidden_callers(
     allowed = {
         "app/api.py",
         "app/cli.py",
+        "app/server.py",
         "app/application.py",
         "app/scope.py",
         "app/bootstrap.py",

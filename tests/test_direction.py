@@ -99,11 +99,11 @@ def test_scope_cannot_acquire_bootstrap_or_business_responsibilities(
 
 
 @pytest.mark.parametrize("source", ["app/scope.py", "app/bootstrap.py", "app/api_support.py"])
-@pytest.mark.parametrize("entry", ["app.api", "app.cli"])
+@pytest.mark.parametrize("entry", ["app.api", "app.cli", "app.server"])
 def test_composition_and_http_support_cannot_import_entries(
     tmp_path: Path, source: str, entry: str
 ) -> None:
-    root = tree(tmp_path, {"app/cli.py": "", source: ""})
+    root = tree(tmp_path, {"app/cli.py": "", "app/server.py": "", source: ""})
     assert violations(extract(root, tach=TACH)) == []
     (root / source).write_text(f"import {entry}\n")
     reported = violations(extract(root, tach=TACH))
@@ -124,3 +124,52 @@ def test_bootstrap_can_initialize_capabilities_after_binding_resources(tmp_path:
         },
     )
     assert violations(extract(root, tach=TACH)) == []
+
+
+def test_server_entry_composes_public_surfaces(tmp_path: Path) -> None:
+    root = tree(
+        tmp_path,
+        {
+            "app/server.py": (
+                "from app.one import Item\n"
+                "from app.one.deps import get_items\n"
+                "from app.one.commands import Add\n"
+                "import app.scope\n"
+                "import app.bootstrap\n"
+            ),
+            "app/one/commands.py": "from ._commands.add import Add\n",
+            "app/one/_commands/__init__.py": "",
+            "app/one/_commands/add.py": "class Add: pass\n",
+            "app/scope.py": "",
+            "app/bootstrap.py": "",
+        },
+    )
+    architecture = extract(root, tach=TACH)
+    assert "app.server" in architecture.entries
+    assert "app.server" not in architecture.api_entries
+    assert violations(architecture) == []
+
+
+@pytest.mark.parametrize("target", ["app.one._private", "app.one.api_routes", "app.cli"])
+def test_server_entry_preserves_import_restrictions(tmp_path: Path, target: str) -> None:
+    root = tree(
+        tmp_path,
+        {
+            "app/server.py": f"import {target}\n",
+            "app/one/_private.py": "",
+            "app/one/api_routes.py": "",
+            "app/cli.py": "",
+        },
+    )
+    assert any(
+        v.src == "app.server" and v.tgt == target for v in violations(extract(root, tach=TACH))
+    )
+
+
+def test_nested_server_remains_business_code(tmp_path: Path) -> None:
+    root = tree(tmp_path, {"app/one/server.py": "from app.one.deps import get_items\n"})
+    architecture = extract(root, tach=TACH)
+    assert "app.one.server" not in architecture.entries
+    assert any(
+        v.src == "app.one.server" and v.rule == "composition" for v in violations(architecture)
+    )

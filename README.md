@@ -16,12 +16,12 @@ annotations and a `py.typed` marker for Python API consumers.
 Install the published beta from PyPI:
 
 ```sh
-uv add --dev bsa-linter==0.1.0b5
+uv add --dev bsa-linter==0.1.0b6
 uv run bsa-lint --root .
 ```
 
 The beta's rules and public APIs may change before a stable release. Pin a version
-and review diagnostics when upgrading. [PyPI release](https://pypi.org/project/bsa-linter/0.1.0b5/).
+and review diagnostics when upgrading. [PyPI release](https://pypi.org/project/bsa-linter/0.1.0b6/).
 
 The distribution was previously named `bsa-architecture-linter`. If installed,
 remove that dependency before adding `bsa-linter`; both provide the same
@@ -30,7 +30,7 @@ remove that dependency before adding `bsa-linter`; both provide the same
 Alternatively, install from the matching source release:
 
 ```sh
-uv add --dev 'bsa-linter @ git+https://github.com/defrag/bsa-python-linter@v0.1.0b5'
+uv add --dev 'bsa-linter @ git+https://github.com/defrag/bsa-python-linter@v0.1.0b6'
 uv run bsa-lint --root .
 ```
 
@@ -182,7 +182,7 @@ files. In the following examples, `folio` is an illustrative application name.
 | `folio/catalog/queries.py` | Ordinary non-anchor implementation. It is not a public cross-owner surface. |
 | `folio/catalog/api_routes.py` | Capability HTTP surface. Only the application API entry may import it. |
 | `folio/api.py` | API entry; may assemble capability HTTP surfaces. |
-| `folio/cli.py`, `worker.py`, `main.py`, `application.py` | Other application entries; may assemble public factories, but do not gain HTTP permissions. |
+| `folio/cli.py`, `worker.py`, `server.py`, `main.py`, `application.py` | Other application entries; may assemble public factories, but do not gain HTTP permissions. |
 | `folio/scope.py`, `folio/bootstrap.py` | Application composition: resource definitions/binding and setup/teardown respectively. Packages with these names also carry the role through their subtrees. |
 | `folio/foundation`, `shared`, `settings`, `errors`, `database` | Independent support, as files or packages immediately below the application root. `settings` additionally has a restricted import audience. |
 | `folio/api_support` | Shared HTTP support, as a file or package immediately below the application root. |
@@ -648,6 +648,14 @@ Those integration tests remain in the monorepo; the public package's tests and C
 are self-contained and need no private repository or sample implementation.
 
 ## Releases and license
+
+### 0.1.0b6 — 2026-11-08
+
+- Recognize application-root `server.py` as an entry adapter for MCP and other
+  non-HTTP servers. It can compose public factories, commands, domain vocabulary,
+  scope, and bootstrap; existing private access and entry direction rules apply.
+- Only `api.py` retains HTTP framework and router assembly permissions. Nested
+  business modules named `server.py` remain business code.
 
 ### 0.1.0b5 — 2026-10-19
 

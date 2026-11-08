@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from bsa_linter.architecture import Architecture
 
-ENTRY_NAMES = {"api", "cli", "worker", "main", "application"}
+ENTRY_NAMES = {"api", "cli", "worker", "server", "main", "application"}
 ROUTE_NAMES = {"api_routes"}
 SUPPORT_NAMES = {"foundation", "shared", "settings", "errors", "database"}
 HTTP_SUPPORT_NAMES = {"api_support"}
