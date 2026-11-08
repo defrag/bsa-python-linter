@@ -16,12 +16,12 @@ annotations and a `py.typed` marker for Python API consumers.
 Install the published beta from PyPI:
 
 ```sh
-uv add --dev bsa-linter==0.1.0b6
+uv add --dev bsa-linter==0.1.0b7
 uv run bsa-lint --root .
 ```
 
 The beta's rules and public APIs may change before a stable release. Pin a version
-and review diagnostics when upgrading. [PyPI release](https://pypi.org/project/bsa-linter/0.1.0b6/).
+and review diagnostics when upgrading. [PyPI release](https://pypi.org/project/bsa-linter/0.1.0b7/).
 
 The distribution was previously named `bsa-architecture-linter`. If installed,
 remove that dependency before adding `bsa-linter`; both provide the same
@@ -30,7 +30,7 @@ remove that dependency before adding `bsa-linter`; both provide the same
 Alternatively, install from the matching source release:
 
 ```sh
-uv add --dev 'bsa-linter @ git+https://github.com/defrag/bsa-python-linter@v0.1.0b6'
+uv add --dev 'bsa-linter @ git+https://github.com/defrag/bsa-python-linter@v0.1.0b7'
 uv run bsa-lint --root .
 ```
 
@@ -182,7 +182,9 @@ files. In the following examples, `folio` is an illustrative application name.
 | `folio/catalog/queries.py` | Ordinary non-anchor implementation. It is not a public cross-owner surface. |
 | `folio/catalog/api_routes.py` | Capability HTTP surface. Only the application API entry may import it. |
 | `folio/api.py` | API entry; may assemble capability HTTP surfaces. |
-| `folio/cli.py`, `worker.py`, `server.py`, `main.py`, `application.py` | Other application entries; may assemble public factories, but do not gain HTTP permissions. |
+| `folio/server.py` | MCP server entry; may assemble capability MCP tool surfaces. |
+| `folio/catalog/mcp_tools.py` | Capability MCP tool surface; only `server.py` may import it. Uses public factories and command/domain surfaces, with no private-handler access. |
+| `folio/cli.py`, `worker.py`, `main.py`, `application.py` | Other application entries; may assemble public factories, but do not gain HTTP permissions. |
 | `folio/scope.py`, `folio/bootstrap.py` | Application composition: resource definitions/binding and setup/teardown respectively. Packages with these names also carry the role through their subtrees. |
 | `folio/foundation`, `shared`, `settings`, `errors`, `database` | Independent support, as files or packages immediately below the application root. `settings` additionally has a restricted import audience. |
 | `folio/api_support` | Shared HTTP support, as a file or package immediately below the application root. |
@@ -273,7 +275,8 @@ produce ownership findings; see [Source extraction](#source-extraction).
 
 For a foreign owner, the supported target locations are its root, `commands`,
 and `deps`, subject to their audiences. API entries additionally use capability
-`api_routes`. A concept leaf such as `catalog.book` is implementation relative
+`api_routes`; the MCP server entry additionally uses capability `mcp_tools.py`
+files. A concept leaf such as `catalog.book` is implementation relative
 to foreign owners, even if its classes have public names. `queries.py` is not an
 additional public surface.
 
@@ -341,9 +344,9 @@ from folio.catalog._commands.register import RegisterHandler  # allowed: own cod
 
 Same-owner implementation can collaborate across private descendants and sibling
 branches, provided imports remain acyclic and satisfy role restrictions. There
-is a stricter rule for `_commands`: the owner's roots, anchors, and HTTP routes
+is a stricter rule for `_commands`: the owner's roots, anchors, HTTP routes, and MCP tools
 cannot import it directly. Its own `commands`, `deps`, and non-anchor
-implementation can. Routes use the public command and factory surfaces instead.
+implementation can. Transport adapters use the public command and factory surfaces instead.
 Test helpers may import one another's private test implementation; that exception
 does not extend to private production source.
 
@@ -369,6 +372,7 @@ The checker rejects these import directions independently of public/private acce
 | Production entry | Another entry adapter. |
 | Composition or shared HTTP support | Any entry adapter; entries assemble these helpers, not the reverse. |
 | Any caller except the application API entry | A capability's `api_routes`. This includes tests importing the route module directly. |
+| Any caller except the application MCP server entry | A capability's `mcp_tools.py`. This includes tests, other tool surfaces, and the capability's own domain code. |
 
 A concept module can use another owner's public vocabulary when it does not
 violate the parent/child rule. The boundary root itself cannot aggregate that
@@ -393,7 +397,7 @@ support owners still use public surfaces and remain acyclic.
 
 Factory, settings, and application-composition imports are permitted for edge
 modules and direct-owner factories. Edge modules are application entries, tests,
-capability HTTP routes, shared HTTP support, and application composition. Other
+capability HTTP routes and MCP tools, shared HTTP support, and application composition. Other
 rules still apply: for example, shared HTTP support cannot use a business factory
 because it cannot depend on business owners.
 
@@ -418,6 +422,10 @@ Imports from `fastapi`, `flask`, and `starlette` (including submodules) are allo
 only for HTTP callers: the API entry, capability HTTP routes, shared HTTP support,
 and tests. CLI/worker entries, factories, application composition, ordinary
 support, and business modules cannot import those frameworks.
+
+Imports from `mcp` and `fastmcp` (including submodules) are allowed only in
+application-root `server.py`, capability `mcp_tools.py` files, and tests. MCP tool
+surfaces retain their capability as direct owner; they do not gain HTTP permissions.
 
 The linter checks these imports, not what constructors or factories do. It does
 not prove that a factory is synchronous, parameterless, free of I/O, or returns
@@ -580,7 +588,7 @@ Alias tracking is deliberately limited to static references and simple assignmen
 it is not whole-program data-flow analysis or a security sandbox. The supported
 import profile rejects known dynamic mechanisms instead of executing code to
 resolve them. Other transport libraries are not automatically covered by the
-explicit FastAPI/Flask/Starlette restriction.
+explicit FastAPI/Flask/Starlette and MCP/FastMCP restrictions.
 
 ## Development and verification
 
@@ -648,6 +656,20 @@ Those integration tests remain in the monorepo; the public package's tests and C
 are self-contained and need no private repository or sample implementation.
 
 ## Releases and license
+
+### 0.1.0b7 — 2026-11-08
+
+- Add capability-owned `mcp_tools.py` surfaces, assembled only by application-root
+  `server.py`. Tool adapters may use public factories, command/domain surfaces,
+  settings, and application composition. Private-handler access, foreign private
+  imports, HTTP router assembly, and imports between tool surfaces remain forbidden.
+- Restrict MCP SDK imports (`mcp`, `fastmcp`, including submodules) to the server,
+  tool surfaces, and tests. HTTP permissions remain separate.
+- Preserve direct capability ownership, nested boundaries, scoped checks, and
+  dependency-cycle detection for MCP adapters.
+- The guide recommends `register_tools(server)` with lazy factory use during tool
+  calls. The linter checks source/import rules, not registration signatures or runtime
+  behavior. Test tools through production server wiring.
 
 ### 0.1.0b6 — 2026-11-08
 

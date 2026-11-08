@@ -51,6 +51,12 @@ def infer_architecture(modules: set[str], packages: set[str]) -> Architecture:
     }
     return Architecture(
         namespace=namespace,
+        mcp_entries=frozenset({f"{namespace}.server"} & entries),
+        mcp_tools=frozenset(
+            module
+            for module in modules - packages
+            if module.rsplit(".", 1)[-1] == "mcp_tools" and module.rpartition(".")[0] in boundaries
+        ),
         modules=frozenset(modules),
         packages=frozenset(packages),
         boundaries=frozenset(boundaries),

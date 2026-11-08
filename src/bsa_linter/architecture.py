@@ -43,6 +43,8 @@ class Architecture:
     files: dict[str, str] = field(default_factory=lambda: dict[str, str]())
     imports: tuple[ImportEdge, ...] = ()
     issues: tuple[Violation, ...] = ()
+    mcp_entries: frozenset[str] = frozenset()
+    mcp_tools: frozenset[str] = frozenset()
 
     def file_of(self, module: str) -> str:
         return self.files.get(module, "")
@@ -93,6 +95,7 @@ class OwnershipTree:
 NOT_ANCHOR = {"commands", "deps", "queries"}
 SURFACES = {"deps", "commands"}
 TRANSPORT = {"fastapi", "flask", "starlette"}
+MCP_TRANSPORT = {"mcp", "fastmcp"}
 TECHNICAL_BUCKETS = {
     "model",
     "models",
@@ -224,10 +227,15 @@ def is_http(architecture: Architecture, module: str) -> bool:
     )
 
 
+def is_mcp(architecture: Architecture, module: str) -> bool:
+    return module in architecture.mcp_entries | architecture.mcp_tools or is_test(module)
+
+
 def is_edge(architecture: Architecture, module: str) -> bool:
     return (
         module in entry_modules(architecture)
         or is_http(architecture, module)
+        or is_mcp(architecture, module)
         or under_any(architecture.composition, module)
     )
 
@@ -245,7 +253,7 @@ def is_anchor(architecture: Architecture, module: str) -> bool:
         and parent(module) == owner
         and not leaf(module).startswith("_")
         and leaf(module) not in NOT_ANCHOR
-        and module not in architecture.routes
+        and module not in architecture.routes | architecture.mcp_tools
     )
 
 
@@ -311,6 +319,7 @@ def public_surface(architecture: Architecture, source: str, target: str) -> bool
         target == owner
         or target in {f"{owner}.{name}" for name in SURFACES}
         or (target in architecture.routes and source in architecture.api_entries)
+        or (target in architecture.mcp_tools and source in architecture.mcp_entries)
         or (is_test(source) and is_test(target))
     )
 
@@ -474,6 +483,7 @@ def private_access_violation(architecture: Architecture, edge: ImportEdge) -> Vi
         source_owner == target_owner
         and not is_anchor(architecture, edge.src)
         and not is_http(architecture, edge.src)
+        and not is_mcp(architecture, edge.src)
     )
     if private_commands and not allowed_commands:
         return make_violation(
@@ -547,6 +557,8 @@ def direction_violation(architecture: Architecture, edge: ImportEdge) -> Violati
         and target in architecture.modules
     ):
         reason = "Only a declared API entry assembles capability HTTP surfaces"
+    elif target in architecture.mcp_tools and source not in architecture.mcp_entries:
+        reason = "Only a declared MCP server entry assembles capability MCP tool surfaces"
     elif is_ui(architecture, target) and not is_http(architecture, source):
         reason = "Non-HTTP source imports shared HTTP support"
     elif is_ui(architecture, source) and business_owner(architecture, target_owner):
@@ -614,6 +626,8 @@ def composition_import_violation(architecture: Architecture, edge: ImportEdge) -
     reason = None
     if under_any(TRANSPORT, target) and not is_http(architecture, source):
         reason = "Non-HTTP source imports a transport framework"
+    elif under_any(MCP_TRANSPORT, target) and not is_mcp(architecture, source):
+        reason = "Non-MCP source imports an MCP framework"
     elif (
         (
             target.endswith(".deps")
