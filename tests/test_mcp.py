@@ -92,10 +92,12 @@ def test_tool_adapters_preserve_restrictions(tmp_path: Path, target: str, rule: 
     )
 
 
-@pytest.mark.parametrize("framework", ["mcp", "mcp.server.fastmcp", "fastmcp"])
-def test_mcp_framework_audience(tmp_path: Path, framework: str) -> None:
-    allowed = {"app/server.py", "app/one/mcp_tools.py", "tests/test_mcp.py"}
-    forbidden = {
+@pytest.mark.parametrize("framework", ["mcp", "mcp.server.fastmcp", "fastmcp", "fastmcp.tools"])
+def test_mcp_dependencies_do_not_restrict_module_roles(tmp_path: Path, framework: str) -> None:
+    modules = {
+        "app/server.py",
+        "app/one/mcp_tools.py",
+        "tests/test_mcp.py",
         "app/api.py",
         "app/cli.py",
         "app/main.py",
@@ -107,11 +109,9 @@ def test_mcp_framework_audience(tmp_path: Path, framework: str) -> None:
         "app/foundation.py",
         "app/one/server.py",
     }
-    root = tree(tmp_path, {path: f"import {framework}\n" for path in allowed | forbidden})
+    root = tree(tmp_path, {path: f"import {framework}\n" for path in modules})
     found = violations(extract(root, tach=TACH))
-    assert {(v.file, v.tgt) for v in found if v.rule == "composition"} == {
-        (path, framework) for path in forbidden
-    }
+    assert found == []
 
 
 def test_nested_capability_tools_keep_their_direct_owner(tmp_path: Path) -> None:

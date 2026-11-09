@@ -95,7 +95,6 @@ class OwnershipTree:
 NOT_ANCHOR = {"commands", "deps", "queries"}
 SURFACES = {"deps", "commands"}
 TRANSPORT = {"fastapi", "flask", "starlette"}
-MCP_TRANSPORT = {"mcp", "fastmcp"}
 TECHNICAL_BUCKETS = {
     "model",
     "models",
@@ -626,8 +625,6 @@ def composition_import_violation(architecture: Architecture, edge: ImportEdge) -
     reason = None
     if under_any(TRANSPORT, target) and not is_http(architecture, source):
         reason = "Non-HTTP source imports a transport framework"
-    elif under_any(MCP_TRANSPORT, target) and not is_mcp(architecture, source):
-        reason = "Non-MCP source imports an MCP framework"
     elif (
         (
             target.endswith(".deps")

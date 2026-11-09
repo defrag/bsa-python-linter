@@ -16,12 +16,12 @@ annotations and a `py.typed` marker for Python API consumers.
 Install the published beta from PyPI:
 
 ```sh
-uv add --dev bsa-linter==0.1.0b7
+uv add --dev bsa-linter==0.1.0b8
 uv run bsa-lint --root .
 ```
 
 The beta's rules and public APIs may change before a stable release. Pin a version
-and review diagnostics when upgrading. [PyPI release](https://pypi.org/project/bsa-linter/0.1.0b7/).
+and review diagnostics when upgrading. [PyPI release](https://pypi.org/project/bsa-linter/0.1.0b8/).
 
 The distribution was previously named `bsa-architecture-linter`. If installed,
 remove that dependency before adding `bsa-linter`; both provide the same
@@ -30,7 +30,7 @@ remove that dependency before adding `bsa-linter`; both provide the same
 Alternatively, install from the matching source release:
 
 ```sh
-uv add --dev 'bsa-linter @ git+https://github.com/defrag/bsa-python-linter@v0.1.0b7'
+uv add --dev 'bsa-linter @ git+https://github.com/defrag/bsa-python-linter@v0.1.0b8'
 uv run bsa-lint --root .
 ```
 
@@ -423,9 +423,9 @@ only for HTTP callers: the API entry, capability HTTP routes, shared HTTP suppor
 and tests. CLI/worker entries, factories, application composition, ordinary
 support, and business modules cannot import those frameworks.
 
-Imports from `mcp` and `fastmcp` (including submodules) are allowed only in
-application-root `server.py`, capability `mcp_tools.py` files, and tests. MCP tool
-surfaces retain their capability as direct owner; they do not gain HTTP permissions.
+Third-party `mcp` and `fastmcp` imports (including submodules) are not restricted
+by module role. Local MCP tool surfaces retain their capability as direct owner,
+are assembled only by `server.py`, and do not gain HTTP permissions.
 
 The linter checks these imports, not what constructors or factories do. It does
 not prove that a factory is synchronous, parameterless, free of I/O, or returns
@@ -588,7 +588,7 @@ Alias tracking is deliberately limited to static references and simple assignmen
 it is not whole-program data-flow analysis or a security sandbox. The supported
 import profile rejects known dynamic mechanisms instead of executing code to
 resolve them. Other transport libraries are not automatically covered by the
-explicit FastAPI/Flask/Starlette and MCP/FastMCP restrictions.
+explicit FastAPI/Flask/Starlette restriction.
 
 ## Development and verification
 
@@ -656,6 +656,12 @@ Those integration tests remain in the monorepo; the public package's tests and C
 are self-contained and need no private repository or sample implementation.
 
 ## Releases and license
+
+### 0.1.0b8 — 2026-11-09
+
+- Remove role-based restrictions on third-party `mcp` and `fastmcp` imports.
+  Keep `mcp_tools.py` surface audiences, factory permissions, private-handler
+  restrictions, ownership, and cycle checks unchanged.
 
 ### 0.1.0b7 — 2026-11-08
 

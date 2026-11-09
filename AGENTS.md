@@ -39,9 +39,9 @@ resource definitions and binding, and `bootstrap` for setup and teardown.
 Shared API support is `api_support`; capability HTTP surfaces are `api_routes.py`.
 Capability MCP tool surfaces are `mcp_tools.py`, assembled only by application-root
 `server.py`. They use public factories and command/domain surfaces, never private
-commands or another capability's implementation. MCP SDK imports (`mcp`, `fastmcp`)
-belong only in the MCP server, tool surfaces, or tests. HTTP and MCP audiences
-remain distinct; transport roles never hide ownership or cycles.
+commands or another capability's implementation. Do not restrict third-party
+`mcp` or `fastmcp` imports by module role. MCP surface permissions concern local
+source connections; they never hide ownership or cycles or grant HTTP permissions.
 Scope stays independent of business owners, factories, and bootstrap; bootstrap
 may initialize capabilities through public factories. Neither composition nor
 shared HTTP helpers import entry adapters. Domain errors belong with their

@@ -8,7 +8,7 @@ resolution-markers = [
 
 [[package]]
 name = "bsa-linter"
-version = "0.1.0b7"
+version = "0.1.0b8"
 source = { editable = "." }
 dependencies = [
     { name = "tach" },
